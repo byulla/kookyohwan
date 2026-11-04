@@ -1,3 +1,6 @@
+src/kookyohwan/ui/TextUtil.java
+src/kookyohwan/storage/SampleData.java
+src/kookyohwan/Main.java
 src/kookyohwan/model/TimeSlot.java
 src/kookyohwan/model/Day.java
 src/kookyohwan/model/SwapRequest.java
@@ -8,3 +11,9 @@ src/kookyohwan/model/Course.java
 src/kookyohwan/model/Student.java
 src/kookyohwan/model/RequestStatus.java
 src/kookyohwan/model/CourseType.java
+src/kookyohwan/service/CourseCatalog.java
+src/kookyohwan/service/RequestBoard.java
+src/kookyohwan/service/MatchService.java
+src/kookyohwan/service/RequestRejectedException.java
+src/kookyohwan/service/StudentRegistry.java
+src/kookyohwan/service/Repository.java
