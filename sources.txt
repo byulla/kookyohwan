@@ -1,0 +1,10 @@
+src/kookyohwan/model/TimeSlot.java
+src/kookyohwan/model/Day.java
+src/kookyohwan/model/SwapRequest.java
+src/kookyohwan/model/MatchResult.java
+src/kookyohwan/model/MatchVerdict.java
+src/kookyohwan/model/Timetable.java
+src/kookyohwan/model/Course.java
+src/kookyohwan/model/Student.java
+src/kookyohwan/model/RequestStatus.java
+src/kookyohwan/model/CourseType.java
