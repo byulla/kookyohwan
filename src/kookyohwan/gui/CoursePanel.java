@@ -35,9 +35,9 @@ class CoursePanel extends JPanel {
     private static final int SEAT_COLUMN = 5;
 
     private final Session session;
-    private final JTextField keyword = new JTextField(20);
-    private final JComboBox<String> typeFilter = new JComboBox<>();
-    private final JComboBox<String> seatFilter = new JComboBox<>(new String[]{"전체", "빈자리 있음", "마감"});
+    private final JTextField keyword = Theme.field(18);
+    private final JComboBox<String> typeFilter = Theme.combo();
+    private final JComboBox<String> seatFilter = Theme.combo(new String[]{"전체", "빈자리 있음", "마감"});
     private final JLabel count = new JLabel();
     private final JLabel hint = new JLabel();
     private final JButton addButton = Theme.primary("선택한 과목을 내 시간표에 넣기");
@@ -61,7 +61,7 @@ class CoursePanel extends JPanel {
             typeFilter.addItem(type.getLabel());
         }
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, ROW_GAP));
-        top.add(new JLabel("검색 (교과목명 일부 또는 학수번호 앞자리)"));
+        top.add(new JLabel("검색"));
         top.add(keyword);
         top.add(new JLabel("구분"));
         top.add(typeFilter);

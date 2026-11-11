@@ -37,9 +37,9 @@ class TimetablePanel extends JPanel {
     private final JLabel mode = new JLabel();
     private final JLabel summary = new JLabel();
     private final JLabel addLabel = new JLabel();
-    private final JTextField codeField = new JTextField(10);
+    private final JTextField codeField = Theme.field(9);
     private final JButton addButton = Theme.secondary("수강신청");
-    private final JComboBox<String> removeBox = new JComboBox<>();
+    private final JComboBox<String> removeBox = Theme.combo();
     private final List<Course> removeCourses = new ArrayList<>(); // removeBox의 항목 순서와 같은 과목
     private final JButton removeButton = Theme.secondary("빼기");
     private final JButton confirmButton = Theme.primary("시간표 저장 (확정)");

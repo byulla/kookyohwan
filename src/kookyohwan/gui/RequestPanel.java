@@ -34,9 +34,9 @@ class RequestPanel extends JPanel {
     };
     private final JTable table = new JTable(model);
     private final List<Boolean> mineRows = new ArrayList<>();
-    private final JComboBox<String> giveBox = new JComboBox<>();
+    private final JComboBox<String> giveBox = Theme.combo();
     private final List<Course> giveCourses = new ArrayList<>(); // giveBox의 항목 순서와 같은 과목
-    private final JTextField wantField = new JTextField(24);
+    private final JTextField wantField = Theme.field(24);
 
 
     RequestPanel(Session session) {

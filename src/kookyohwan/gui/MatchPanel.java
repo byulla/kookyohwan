@@ -22,7 +22,7 @@ import java.util.List;
 /** 매칭 탭(R4·R5·R5-2): 내 대기 요청을 골라 매칭을 돌리고 가능/제외와 사유를 본다. 조회 전용. */
 class MatchPanel extends JPanel {
     private final Session session;
-    private final JComboBox<String> requestBox = new JComboBox<>();
+    private final JComboBox<String> requestBox = Theme.combo();
     private final List<SwapRequest> waiting = new ArrayList<>(); // requestBox의 항목 순서와 같은 요청
     private final JButton runButton = Theme.primary("매칭 실행");
     private final JLabel info = new JLabel(" ");
