@@ -39,34 +39,57 @@ public class Timetable {
     }
 
     /**
-     * R2: 시간표 추가. 이미 있거나, 겹치거나, 최대 학점을 넘으면 false를 돌려주고 시간표는 그대로 둔다.
-     * (겹칠 때 교체 여부는 콘솔이 묻고, y면 replace를 호출)
+     * 중복 수강 판정은 여기 한 곳: removing을 뺀 나머지 중에 incoming과 같은 과목(같은 분반 포함)이 있으면 그 과목.
+     * 시간이 안 겹치는 다른 분반이나 시간이 없는 과목은 겹침 검사로는 못 잡아서 따로 본다.
+     */
+    public Optional<Course> findSameSubject(Course incoming, List<Course> removing) {
+        for (Course mine : courses) {
+            if (mine.isSameSubject(incoming) && !containsCode(removing, mine.getCode())) {
+                return Optional.of(mine);
+            }
+        }
+        return Optional.empty();
+    }
+
+    private static boolean containsCode(List<Course> list, String code) {
+        for (Course c : list) {
+            if (c.getCode().equals(code)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * R2: 시간표 추가. 이미 듣는 과목(다른 분반 포함)이거나, 겹치거나, 최대 학점을 넘으면
+     * false를 돌려주고 시간표는 그대로 둔다. (겹칠 때 교체 여부는 콘솔이 묻고, y면 replace를 호출)
      */
     public boolean add(Course course) {
-        if (contains(course.getCode()) || !findConflicts(course, null).isEmpty()
-                || exceedsLimit(course, Collections.emptyList())) {
-            return false;
-        }
-        courses.add(course);
-        return true;
+        return replace(Collections.emptyList(), course);
     }
 
     /**
-     * R2 교체: 겹치는 과목들을 빼고 새 과목을 넣는다. 사용자가 y라고 답한 뒤에만 호출.
-     * 교체한 뒤 최대 학점을 넘으면 false를 돌려주고 시간표는 그대로 둔다.
+     * R2 교체·교환: toRemove를 빼고 새 과목을 넣는다. 사용자가 y라고 답한 뒤에만 호출.
+     * 빼고 난 뒤에도 겹치는 과목이 남거나, 같은 과목을 이미 듣거나, 최대 학점을 넘으면
+     * false를 돌려주고 시간표는 그대로 둔다 — 부르는 쪽이 검사를 빠뜨려도 어긋난 시간표가 만들어지지 않게.
      */
     public boolean replace(List<Course> toRemove, Course course) {
-        if (exceedsLimit(course, toRemove)) {
+        if (findSameSubject(course, toRemove).isPresent() || exceedsLimit(course, toRemove)) {
             return false;
         }
-        courses.removeAll(toRemove);
+        for (Course conflict : findConflicts(course, null)) {
+            if (!containsCode(toRemove, conflict.getCode())) {
+                return false;
+            }
+        }
+        courses.removeIf(c -> containsCode(toRemove, c.getCode()));
         courses.add(course);
         return true;
     }
 
     /**
-     * 복원 전용: 파일에 저장돼 있던 과목을 그대로 넣는다. 중복·겹침만 거절하고 학점 제한은 보지 않는다 —
-     * 제한을 두기 전에 저장한 시간표가 18학점을 넘어도 프로그램이 시작되게 하려고. (넘은 상태에서는 더 추가할 수 없다)
+     * 복원 전용: 파일에 저장돼 있던 과목을 그대로 넣는다. 같은 분반 중복·겹침만 거절하고
+     * 학점 제한과 같은 과목 다른 분반은 보지 않는다 — 규칙을 두기 전에 저장한 시간표도 읽히게 하려고.
      */
     public boolean restore(Course course) {
         if (contains(course.getCode()) || !findConflicts(course, null).isEmpty()) {

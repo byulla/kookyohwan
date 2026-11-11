@@ -177,13 +177,20 @@ public class ConsoleUI {
                 reject(course.getName() + " " + course.getSection(), "이미 시간표에 있습니다", "시간표를");
                 continue;
             }
+            List<Course> conflicts = table.findConflicts(course, null);
+            // 같은 과목의 다른 분반을 이미 듣는 경우. 시간이 겹치는 분반이면 아래 교체 흐름으로 분반을 바꿀 수 있다
+            Optional<Course> same = table.findSameSubject(course, conflicts);
+            if (same.isPresent()) {
+                reject(course.getName() + " " + course.getSection(), "같은 과목의 " + same.get().getSection()
+                        + " 분반을 이미 듣고 있습니다", "시간표를");
+                continue;
+            }
             try {
                 enrollment.validateEnroll(me, course); // 확정한 뒤에는 마감된 과목을 넣을 수 없다 -> 교환 요청으로
             } catch (RequestRejectedException e) {
                 reject(e.getTarget(), e.getReason(), "시간표를");
                 continue;
             }
-            List<Course> conflicts = table.findConflicts(course, null);
             if (table.exceedsLimit(course, conflicts)) { // 겹치는 과목을 빼고 넣어도 넘는 경우까지 여기서 거절
                 reject(course.getName() + " " + course.getSection(), "최대 " + Timetable.MAX_CREDITS
                         + "학점을 넘습니다 (현재 " + table.getTotalCredits() + "학점, 넣으면 "

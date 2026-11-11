@@ -49,6 +49,15 @@ public class MatchService {
                 continue;
             }
 
+            // 1-3) 중복 수강: 내가 받을 과목을 이미 듣고 있으면(다른 분반 포함) 제외. 판정은 Timetable 한 곳
+            Optional<Course> mineSame = myTimetable.findSameSubject(receive,
+                    Collections.singletonList(mine.getGiveCourse()));
+            if (mineSame.isPresent()) {
+                results.add(MatchResult.excluded(other, receive, MatchVerdict.EXCLUDED_MINE,
+                        "내가 이미 듣는 과목: " + mineSame.get().getName() + " " + mineSame.get().getSection()));
+                continue;
+            }
+
             // 2) 내 시간표 겹침 (내놓는 과목 자리는 비므로 제외하고 비교)
             Optional<Course> mineConflict = myTimetable.findConflict(receive, mine.getGiveCourse());
             if (mineConflict.isPresent()) {
@@ -75,6 +84,14 @@ public class MatchService {
             if (partner.isEmpty()) {
                 notes.add("상대 시간표 미확인");
             } else {
+                Optional<Course> partnerSame = partner.get().getTimetable().findSameSubject(
+                        mine.getGiveCourse(), Collections.singletonList(receive));
+                if (partnerSame.isPresent()) {
+                    results.add(MatchResult.excluded(other, receive, MatchVerdict.EXCLUDED_PARTNER,
+                            "상대가 이미 듣는 과목: " + partnerSame.get().getName() + " "
+                                    + partnerSame.get().getSection()));
+                    continue;
+                }
                 Optional<Course> partnerConflict =
                         partner.get().getTimetable().findConflict(mine.getGiveCourse(), receive);
                 if (partnerConflict.isPresent()) {

@@ -196,7 +196,7 @@ class MatchPanel extends JPanel {
         StringBuilder done = new StringBuilder("[등록] 교환 확정: " + who + " 님과 " + give.getName() + " <-> "
                 + receive.getName() + ". 요청 #" + mine.getId() + ", #" + other.getId() + " 매칭완료");
         for (SwapRequest r : cancelled) {
-            done.append("  / 요청 #").append(r.getId()).append(" 취소(내놓는 과목이 없어짐)");
+            done.append("  / 요청 #").append(r.getId()).append(" 자동 취소");
         }
         session.fireChanged(); // 모든 탭을 다시 그린다 (이 탭의 결과도 지워진다)
         session.say(done.toString());

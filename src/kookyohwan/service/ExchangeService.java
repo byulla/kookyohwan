@@ -31,7 +31,7 @@ public class ExchangeService {
      * mine(내 요청)과 other(상대 요청)의 교환을 확정한다.
      * 확정 직전에 매칭을 다시 돌려 지금도 '가능'인지 확인하고(그 사이 시간표가 바뀌었을 수 있다),
      * 아니면 RequestRejectedException을 던지고 아무것도 바꾸지 않는다.
-     * 돌려주는 값: 내놓는 과목이 사라져서 같이 취소된 다른 대기 요청들.
+     * 돌려주는 값: 더는 성립하지 않아 같이 취소된 두 사람의 다른 대기 요청들.
      */
     public List<SwapRequest> confirm(SwapRequest mine, SwapRequest other) {
         Student me = registry.find(mine.getStudentId()).orElseThrow(
@@ -56,25 +56,33 @@ public class ExchangeService {
         Course give = mine.getGiveCourse();
         Course receive = other.getGiveCourse();
         // 내 시간표: 내놓는 과목을 빼고 받을 과목을 넣는다. 상대 시간표는 그 반대 (상대 시간표가 없으면 내 쪽만)
-        me.getTimetable().replace(Collections.singletonList(give), receive);
+        // 한쪽만 바뀐 채 끝나지 않게: 내 쪽이 안 되면 그대로 거절, 상대 쪽이 안 되면 내 쪽을 되돌린다
+        if (!me.getTimetable().replace(Collections.singletonList(give), receive)) {
+            throw new RequestRejectedException("요청 #" + mine.getId(), "내 시간표를 바꿀 수 없습니다");
+        }
         Optional<Student> partner = registry.find(other.getStudentId());
-        if (partner.isPresent()) {
-            partner.get().getTimetable().replace(Collections.singletonList(receive), give);
+        if (partner.isPresent()
+                && !partner.get().getTimetable().replace(Collections.singletonList(receive), give)) {
+            me.getTimetable().replace(Collections.singletonList(receive), give);
+            throw new RequestRejectedException("요청 #" + other.getId(), "상대 시간표를 바꿀 수 없습니다");
         }
         board.complete(mine.getId());
         board.complete(other.getId());
 
-        // 같은 과목을 내놓던 다른 대기 요청은 과목이 없어졌으므로 취소한다 (요청만 남는 상태를 막는다)
+        // 더는 성립하지 않는 두 사람의 다른 대기 요청을 취소한다:
+        // 내놓던 과목이 없어진 요청(요청만 남는 상태를 막는다)과, 방금 얻은 과목을 희망하던 요청(또 받으면 중복 수강)
         List<SwapRequest> cancelled = new ArrayList<>();
-        cancelled.addAll(cancelGiving(mine.getStudentId(), give));
-        cancelled.addAll(cancelGiving(other.getStudentId(), receive));
+        cancelled.addAll(cancelStale(mine.getStudentId(), give, receive));
+        cancelled.addAll(cancelStale(other.getStudentId(), receive, give));
         return cancelled;
     }
 
-    private List<SwapRequest> cancelGiving(String studentId, Course gone) {
+    private List<SwapRequest> cancelStale(String studentId, Course gone, Course gained) {
         List<SwapRequest> cancelled = new ArrayList<>();
         for (SwapRequest r : board.waitingOf(studentId)) {
-            if (r.getGiveCourse().getCode().equals(gone.getCode()) && board.cancel(r.getId())) {
+            boolean stale = r.getGiveCourse().getCode().equals(gone.getCode())
+                    || r.getWantName().equals(gained.getName());
+            if (stale && board.cancel(r.getId())) {
                 cancelled.add(r);
             }
         }

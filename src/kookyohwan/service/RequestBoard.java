@@ -58,6 +58,20 @@ public class RequestBoard {
         if (give.getName().equals(wantName)) {
             throw new RequestRejectedException(wantName, "내놓을 과목과 희망 과목이 같습니다");
         }
+        // 상대도 교양만 내놓을 수 있으므로, 교양 분반이 없는 과목을 희망하면 영원히 매칭되지 않는다
+        boolean anyGeneral = false;
+        for (Course section : catalog.findByName(wantName)) {
+            if (!section.isGeneral()) {
+                continue;
+            }
+            anyGeneral = true;
+            if (student.getTimetable().findSameSubject(section, java.util.Collections.emptyList()).isPresent()) {
+                throw new RequestRejectedException(wantName, "이미 듣고 있는 과목입니다");
+            }
+        }
+        if (!anyGeneral) {
+            throw new RequestRejectedException(wantName, "교양 과목만 교환할 수 있습니다");
+        }
         for (SwapRequest r : waitingOf(student.getId())) {
             if (r.getGiveCourse().getCode().equals(give.getCode()) && r.getWantName().equals(wantName)) {
                 throw new RequestRejectedException(give.getName() + " -> " + wantName,

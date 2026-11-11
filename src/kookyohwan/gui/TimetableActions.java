@@ -23,13 +23,19 @@ final class TimetableActions {
             reject(parent, session, "이미 시간표에 있는 과목입니다.");
             return;
         }
+        List<Course> conflicts = table.findConflicts(course, null);
+        // 같은 과목의 다른 분반을 이미 듣는 경우. 시간이 겹치는 분반이면 아래 교체 흐름으로 분반을 바꿀 수 있다
+        Optional<Course> same = table.findSameSubject(course, conflicts);
+        if (same.isPresent()) {
+            reject(parent, session, "이미 듣는 과목입니다.\n(" + same.get().getSection() + " 분반)");
+            return;
+        }
         try { // 시간표를 확정한 뒤에는 마감된 과목을 바로 넣을 수 없다 -> 교환 요청으로
             session.getEnrollment().validateEnroll(session.getMe(), course);
         } catch (RequestRejectedException e) {
             reject(parent, session, "정원이 마감된 과목입니다.\n교환 요청을 이용하세요.");
             return;
         }
-        List<Course> conflicts = table.findConflicts(course, null);
         if (table.exceedsLimit(course, conflicts)) { // 겹치는 과목을 빼고 넣어도 넘는 경우까지 여기서 거절
             reject(parent, session, Timetable.MAX_CREDITS + "학점을 넘을 수 없습니다.\n(현재 " + table.getTotalCredits()
                     + "학점, 넣으면 " + table.creditsAfter(course, conflicts) + "학점)");

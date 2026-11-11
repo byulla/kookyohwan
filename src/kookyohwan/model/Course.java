@@ -83,6 +83,19 @@ public class Course {
         return type == CourseType.GENERAL;
     }
 
+    /** 분반을 뺀 학수번호 앞부분 ("11393006" -> "11393"). 코드가 분반으로 끝나지 않으면 코드 그대로. */
+    public String getSubjectCode() {
+        return code.endsWith(section) ? code.substring(0, code.length() - section.length()) : code;
+    }
+
+    /**
+     * 같은 과목(분반만 다르거나 같은 분반)인지. 과목명만 보면 학과가 다른 동명 과목(데이터베이스 등)까지
+     * 같다고 해 버려서 학수번호 앞부분도 같이 본다.
+     */
+    public boolean isSameSubject(Course other) {
+        return name.equals(other.name) && getSubjectCode().equals(other.getSubjectCode());
+    }
+
     /** 이 과목의 시간 중 하나라도 other와 겹치면 true. */
     public boolean overlaps(Course other) {
         for (TimeSlot mine : times) {
