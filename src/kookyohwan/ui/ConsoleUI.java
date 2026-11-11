@@ -7,6 +7,7 @@ import kookyohwan.model.Student;
 import kookyohwan.model.SwapRequest;
 import kookyohwan.model.Timetable;
 import kookyohwan.service.CourseCatalog;
+import kookyohwan.service.EnrollmentService;
 import kookyohwan.service.MatchService;
 import kookyohwan.service.RequestBoard;
 import kookyohwan.service.RequestRejectedException;
@@ -33,6 +34,7 @@ public class ConsoleUI {
     private final StudentRegistry registry;
     private final RequestBoard board;
     private final MatchService matcher;
+    private final EnrollmentService enrollment; // 정원·빈자리
     private final Supplier<Optional<Student>> login; // Main.login — 시작 때와 메뉴 9가 같은 메소드
     private final Consumer<Student> saver;           // Main.save — 파일 쓰기는 FileStorage만
     private Student me;
@@ -46,6 +48,7 @@ public class ConsoleUI {
         this.registry = registry;
         this.board = board;
         this.matcher = matcher;
+        this.enrollment = new EnrollmentService(registry);
         this.login = login;
         this.saver = saver;
     }
@@ -128,12 +131,13 @@ public class ConsoleUI {
                 continue;
             }
             System.out.println("[확인] '" + keyword + "' 검색 결과 " + found.size() + "개");
-            System.out.println(" " + col("학수번호", 10) + col("분반", 6) + col("구분", 6) + col("학점", 6) + col("시간", 22) + "교과목명");
+            System.out.println(" " + col("학수번호", 10) + col("분반", 6) + col("구분", 6) + col("학점", 6)
+                    + col("빈자리", 20) + col("시간", 22) + "교과목명");
             for (int i = 0; i < found.size() && i < MAX_SEARCH_ROWS; i++) {
                 Course c = found.get(i);
                 System.out.println(" " + col(c.getCode(), 10) + col(c.getSection(), 6)
                         + col(c.getType().getLabel(), 6) + col(String.valueOf(c.getCredits()), 6)
-                        + col(c.timesToString(), 22) + c.getName());
+                        + col(enrollment.describe(c), 20) + col(c.timesToString(), 22) + c.getName());
             }
             if (found.size() > MAX_SEARCH_ROWS) {
                 System.out.println(" ... 외 " + (found.size() - MAX_SEARCH_ROWS)
@@ -148,9 +152,20 @@ public class ConsoleUI {
         printTimetable();
         Timetable table = me.getTimetable();
         while (true) {
-            String code = ask("추가할 학수번호 (돌아가려면 Enter) > ");
+            // 편집 중: 지금 듣는 과목을 옮겨 적는 단계(정원을 보지 않음). 확정 후: 빈자리가 있는 과목만 수강신청
+            String code = ask(me.isTimetableConfirmed()
+                    ? "수강신청할 학수번호 (빈자리 있는 과목만 / 빼기: -학수번호 / 돌아가려면 Enter) > "
+                    : "넣을 학수번호 (빼기: -학수번호 / 시간표 확정: 저장 / 돌아가려면 Enter) > ");
             if (code.isEmpty()) {
                 return;
+            }
+            if (code.equals("저장") && !me.isTimetableConfirmed()) {
+                confirmTimetable();
+                continue;
+            }
+            if (code.startsWith("-")) {
+                removeCourse(code.substring(1).trim());
+                continue;
             }
             Optional<Course> found = catalog.findByCode(code);
             if (found.isEmpty()) {
@@ -160,6 +175,12 @@ public class ConsoleUI {
             Course course = found.get();
             if (table.contains(code)) {
                 reject(course.getName() + " " + course.getSection(), "이미 시간표에 있습니다", "시간표를");
+                continue;
+            }
+            try {
+                enrollment.validateEnroll(me, course); // 확정한 뒤에는 마감된 과목을 넣을 수 없다 -> 교환 요청으로
+            } catch (RequestRejectedException e) {
+                reject(e.getTarget(), e.getReason(), "시간표를");
                 continue;
             }
             List<Course> conflicts = table.findConflicts(course, null);
@@ -207,11 +228,53 @@ public class ConsoleUI {
         }
     }
 
+    /** 시간표 확정(저장). 이후에는 마감된 과목을 바로 넣을 수 없고 교환 요청을 올릴 수 있다. 되돌릴 수 없어 (y/n) 확인. */
+    private void confirmTimetable() {
+        if (me.getTimetable().size() == 0) {
+            System.out.println("[안내] 시간표가 비어 있습니다. 듣고 있는 과목을 먼저 넣으세요.");
+            return;
+        }
+        System.out.println("[확인] 시간표를 확정하면 빈자리가 있는 과목만 수강신청할 수 있고,");
+        System.out.println("       마감된 과목은 교환 요청으로만 바꿀 수 있습니다. 확정은 되돌릴 수 없습니다.");
+        if (!confirm("이 시간표로 확정할까요? (y/n) > ")) {
+            System.out.println("[취소] 시간표를 확정하지 않았습니다.");
+            return;
+        }
+        registry.confirmTimetable(me.getId());
+        System.out.println("[등록] 시간표 확정. " + me.getTimetable().size() + "과목 "
+                + me.getTimetable().getTotalCredits() + "학점");
+    }
+
+    /** 수강 취소(과목 빼기). 내 대기 요청이 내놓는 과목은 뺄 수 없다. */
+    private void removeCourse(String code) {
+        Optional<Course> found = me.getTimetable().findByCode(code);
+        if (found.isEmpty()) {
+            reject(code, "내 시간표에 없는 학수번호입니다", "시간표를");
+            return;
+        }
+        Course course = found.get();
+        Optional<SwapRequest> blocking = board.findGiving(me.getId(), code);
+        if (blocking.isPresent()) {
+            int id = blocking.get().getId();
+            reject(course.getName(), "요청 #" + id + josa(id, "이", "가")
+                    + " 이 과목을 내놓는 중입니다. 먼저 요청을 취소하세요", "시간표를");
+            return;
+        }
+        if (!confirm(course.getName() + " " + course.getSection() + " 과목을 시간표에서 뺄까요? (y/n) > ")) {
+            System.out.println("[취소] 시간표를 변경하지 않았습니다.");
+            return;
+        }
+        me.getTimetable().remove(course);
+        System.out.println("[등록] " + course.getName() + " " + course.getSection() + " 삭제. "
+                + me.getTimetable().size() + "과목 " + me.getTimetable().getTotalCredits() + "학점");
+        printTimetable();
+    }
+
     private void printTimetable() {
         System.out.println();
         System.out.println("[내 시간표] " + me.getName() + " (" + me.getId() + ")  "
                 + me.getTimetable().size() + "과목  " + me.getTimetable().getTotalCredits() + "학점 (최대 "
-                + Timetable.MAX_CREDITS + ")");
+                + Timetable.MAX_CREDITS + ")" + (me.isTimetableConfirmed() ? "" : "  [편집 중 - 확정 전]"));
         TimetableGrid.print(me.getTimetable());
     }
 
@@ -221,6 +284,10 @@ public class ConsoleUI {
         List<Course> mine = me.getTimetable().getCourses();
         if (mine.isEmpty()) {
             System.out.println("[안내] 시간표가 비어 있습니다. 먼저 2번 메뉴에서 과목을 추가하세요.");
+            return;
+        }
+        if (!me.isTimetableConfirmed()) {
+            System.out.println("[안내] 시간표를 확정한 뒤에 교환 요청을 등록할 수 있습니다. 2번 메뉴에서 '저장'을 입력하세요.");
             return;
         }
         System.out.println();

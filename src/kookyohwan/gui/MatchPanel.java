@@ -9,30 +9,22 @@ import javax.swing.JButton;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JSplitPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
-import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
-import java.awt.Color;
-import java.awt.Component;
 import java.awt.FlowLayout;
 import static kookyohwan.gui.Session.ROW_GAP;
-import java.awt.Font;
 import java.util.ArrayList;
 import java.util.List;
 
 /** 매칭 탭(R4·R5·R5-2): 내 대기 요청을 골라 매칭을 돌리고 가능/제외와 사유를 본다. 조회 전용. */
 class MatchPanel extends JPanel {
-    private static final Color POSSIBLE = new Color(0x1B7F3B);
-    private static final Color EXCLUDED = new Color(0xC0392B);
-
     private final Session session;
     private final JComboBox<String> requestBox = new JComboBox<>();
     private final List<SwapRequest> waiting = new ArrayList<>(); // requestBox의 항목 순서와 같은 요청
-    private final JButton runButton = new JButton("매칭 실행");
+    private final JButton runButton = Theme.primary("매칭 실행");
     private final JLabel info = new JLabel(" ");
     private final DefaultTableModel model = new DefaultTableModel(
             new String[]{"요청", "요청자", "받을 과목", "판정", "사유"}, 0) {
@@ -43,6 +35,9 @@ class MatchPanel extends JPanel {
     };
     private final JTable table = new JTable(model);
     private final JTextArea summary = new JTextArea(8, 60);
+    private final JButton confirmButton = Theme.primary("선택한 상대와 교환 확정");
+    private final List<MatchResult> shown = new ArrayList<>(); // 표의 줄 순서와 같은 결과
+    private SwapRequest matched;                               // 지금 표에 보이는 결과가 어느 요청의 것인지
 
     MatchPanel(Session session) {
         this.session = session;
@@ -55,33 +50,37 @@ class MatchPanel extends JPanel {
         pick.add(runButton);
         JPanel top = new JPanel(new BorderLayout(0, 6));
         top.add(pick, BorderLayout.NORTH);
+        info.setForeground(Theme.MUTED);
         top.add(info, BorderLayout.SOUTH);
         add(top, BorderLayout.NORTH);
 
-        table.setRowHeight(24);
-        table.setFillsViewportHeight(true);
-        int[] widths = {50, 90, 280, 60, 380};
+        Theme.table(table, null);
+        int[] widths = {60, 90, 280, 80, 380};
         for (int i = 0; i < widths.length; i++) {
             table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
-        table.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() { // 판정 색
-            @Override
-            public Component getTableCellRendererComponent(JTable t, Object value, boolean selected,
-                                                           boolean focus, int row, int column) {
-                Component c = super.getTableCellRendererComponent(t, value, selected, focus, row, column);
-                c.setFont(c.getFont().deriveFont(Font.BOLD));
-                if (!selected) {
-                    c.setForeground("가능".equals(value) ? POSSIBLE : EXCLUDED);
-                }
-                return c;
-            }
-        });
+        table.getColumnModel().getColumn(3).setCellRenderer(Theme.pill(null)); // 가능은 초록, 제외는 빨강
         summary.setEditable(false);
         summary.setLineWrap(true);
-        summary.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, new JScrollPane(table), new JScrollPane(summary));
+        summary.setWrapStyleWord(true);
+        summary.setBackground(Theme.HEADER);
+        summary.setForeground(Theme.TEXT);
+        summary.setBorder(BorderFactory.createEmptyBorder(12, 14, 12, 14));
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, Theme.scroll(table), Theme.scroll(summary));
+        split.setBorder(null);
+        split.setDividerSize(8);
+        split.setOpaque(false);
         split.setResizeWeight(0.55);
         add(split, BorderLayout.CENTER);
+
+        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, ROW_GAP));
+        bottom.add(Theme.muted("표에서 가능인 상대를 고른 뒤 누르세요."));
+        bottom.add(confirmButton);
+        add(bottom, BorderLayout.SOUTH);
+        confirmButton.setEnabled(false);
+        table.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        table.getSelectionModel().addListSelectionListener(e -> updateConfirmButton());
+        confirmButton.addActionListener(e -> UiEvents.afterInput(this::confirmExchange));
 
         runButton.addActionListener(e -> runMatch());
         session.addListener(this::refresh);
@@ -98,6 +97,9 @@ class MatchPanel extends JPanel {
         }
         runButton.setEnabled(!waiting.isEmpty());
         model.setRowCount(0);
+        shown.clear();
+        matched = null;
+        updateConfirmButton();
         info.setText(" ");
         summary.setText(waiting.isEmpty()
                 ? "[안내] 대기 중인 내 교환 요청이 없습니다. 먼저 교환 요청 탭에서 요청을 등록하세요."
@@ -114,15 +116,18 @@ class MatchPanel extends JPanel {
         int others = session.getBoard().waitingExcept(session.getMe().getId()).size();
 
         model.setRowCount(0);
+        shown.clear();
+        matched = mine;
         info.setText("대기 중인 다른 요청 " + others + "건 중 조건이 맞는 후보 " + results.size() + "건"
                 + (results.isEmpty() ? "" : " (조건 불일치 " + (others - results.size()) + "건은 후보 아님)"));
         if (results.isEmpty()) {
-            summary.setText("[결과] 조건에 맞는 상대가 없습니다. 요청 #" + mine.getId() + " 은(는) 대기 상태로 유지됩니다.");
+            summary.setText("[결과] 조건에 맞는 상대가 없습니다. 요청 #" + mine.getId() + ": 대기 상태로 유지됩니다.");
             session.say("[결과] 요청 #" + mine.getId() + ": 조건에 맞는 상대 없음");
             return;
         }
         List<MatchResult> possible = new ArrayList<>();
         for (MatchResult r : results) {
+            shown.add(r);
             model.addRow(new Object[]{"#" + r.getRequest().getId(), session.nameOf(r.getRequest().getStudentId()),
                     Session.label(r.getReceiveCourse()), r.getVerdict().getLabel(), r.getReason()});
             if (r.isPossible()) {
@@ -147,12 +152,54 @@ class MatchPanel extends JPanel {
                     .append(" 추가\n");
         }
         if (possible.isEmpty()) {
-            text.append("\n요청 #").append(mine.getId()).append(" 은(는) 대기 상태로 유지됩니다.");
+            text.append("\n요청 #").append(mine.getId()).append(": 대기 상태로 유지됩니다.");
         } else {
-            text.append("\n두 사람이 합의한 뒤 수강신청 시스템에서 직접 정정하세요.\n(매칭 실행은 요청 상태를 바꾸지 않습니다)");
+            text.append("\n두 사람이 합의하고 수강신청 시스템에서 정정했다면, 위 표에서 상대를 고르고 [선택한 상대와 교환 확정]을 누르세요."
+                    + "\n(매칭 실행만으로는 요청 상태가 바뀌지 않습니다)");
         }
         summary.setText(text.toString());
         summary.setCaretPosition(0);
         session.say("[결과] 요청 #" + mine.getId() + ": 교환 가능한 상대 " + possible.size() + "명");
+    }
+
+    /** [가능]으로 나온 줄을 골랐을 때만 확정 버튼을 켠다. */
+    private void updateConfirmButton() {
+        int row = table.getSelectedRow();
+        confirmButton.setEnabled(matched != null && row >= 0 && row < shown.size() && shown.get(row).isPossible());
+    }
+
+    /** 교환 확정: 확인을 받은 뒤 ExchangeService에 맡긴다. 시간표와 요청 상태를 실제로 바꾸는 유일한 화면 동작. */
+    private void confirmExchange() {
+        int row = table.getSelectedRow();
+        if (matched == null || row < 0 || row >= shown.size() || !shown.get(row).isPossible()) {
+            return;
+        }
+        SwapRequest mine = matched;
+        SwapRequest other = shown.get(row).getRequest();
+        Course give = mine.getGiveCourse();
+        Course receive = other.getGiveCourse();
+        String who = session.nameOf(other.getStudentId());
+        int answer = javax.swing.JOptionPane.showConfirmDialog(this,
+                who + " 님과 교환을 확정할까요?\n" + give.getName() + " <-> " + receive.getName(),
+                "교환 확정", javax.swing.JOptionPane.YES_NO_OPTION, javax.swing.JOptionPane.QUESTION_MESSAGE);
+        if (answer != javax.swing.JOptionPane.YES_OPTION) {
+            session.say("[취소] 교환을 확정하지 않았습니다.");
+            return;
+        }
+        List<SwapRequest> cancelled;
+        try {
+            cancelled = session.getExchange().confirm(mine, other);
+        } catch (kookyohwan.service.RequestRejectedException e) {
+            TimetableActions.reject(this, session, TimetableActions.brief(e.getReason()));
+            return;
+        }
+        StringBuilder done = new StringBuilder("[등록] 교환 확정: " + who + " 님과 " + give.getName() + " <-> "
+                + receive.getName() + ". 요청 #" + mine.getId() + ", #" + other.getId() + " 매칭완료");
+        for (SwapRequest r : cancelled) {
+            done.append("  / 요청 #").append(r.getId()).append(" 취소(내놓는 과목이 없어짐)");
+        }
+        session.fireChanged(); // 모든 탭을 다시 그린다 (이 탭의 결과도 지워진다)
+        session.say(done.toString());
+        summary.setText(done + "\n\n내 시간표 탭에서 바뀐 시간표를, 교환 요청 탭에서 요청 상태를 확인하세요.");
     }
 }

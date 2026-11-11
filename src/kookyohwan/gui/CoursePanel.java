@@ -2,6 +2,7 @@ package kookyohwan.gui;
 
 import kookyohwan.model.Course;
 import kookyohwan.model.CourseType;
+import kookyohwan.service.EnrollmentService;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -9,7 +10,6 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
-import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
@@ -18,22 +18,31 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
-import static kookyohwan.gui.Session.ROW_GAP;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 과목 목록 탭(R1): 검색어와 구분으로 좁혀 보고, 고른 과목을 내 시간표에 추가한다. */
+import static kookyohwan.gui.Session.ROW_GAP;
+
+/**
+ * 과목 목록 탭(R1): 검색어와 구분으로 좁혀 보고 빈자리를 확인한다.
+ * 시간표 편집 중에는 고른 과목을 그대로 시간표에 넣고, 확정한 뒤에는 빈자리가 있는 과목만 수강신청할 수 있다.
+ * 마감된 과목은 여기서 넣을 수 없다 — 교환 요청으로 상대를 찾아야 한다.
+ */
 class CoursePanel extends JPanel {
     private static final String ALL_TYPES = "전체";
+    private static final int SEAT_COLUMN = 5;
 
     private final Session session;
-    private final JTextField keyword = new JTextField(22);
+    private final JTextField keyword = new JTextField(20);
     private final JComboBox<String> typeFilter = new JComboBox<>();
+    private final JComboBox<String> seatFilter = new JComboBox<>(new String[]{"전체", "빈자리 있음", "마감"});
     private final JLabel count = new JLabel();
+    private final JLabel hint = new JLabel();
+    private final JButton addButton = Theme.primary("선택한 과목을 내 시간표에 넣기");
     private final DefaultTableModel model = new DefaultTableModel(
-            new String[]{"학수번호", "교과목명", "분반", "구분", "학점", "시간", "교수", "강의실"}, 0) {
+            new String[]{"학수번호", "교과목명", "분반", "구분", "학점", "빈자리", "시간", "교수", "강의실"}, 0) {
         @Override
         public boolean isCellEditable(int row, int column) {
             return false;
@@ -56,22 +65,26 @@ class CoursePanel extends JPanel {
         top.add(keyword);
         top.add(new JLabel("구분"));
         top.add(typeFilter);
+        top.add(new JLabel("빈자리"));
+        top.add(seatFilter);
         top.add(count);
         add(top, BorderLayout.NORTH);
 
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        table.setRowHeight(24);
-        table.setFillsViewportHeight(true);
-        int[] widths = {80, 300, 45, 45, 40, 130, 80, 200};
+        Theme.table(table, null);
+        int[] widths = {85, 270, 50, 50, 45, 140, 120, 80, 170};
         for (int i = 0; i < widths.length; i++) {
             table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
-        add(new JScrollPane(table), BorderLayout.CENTER);
+        table.getColumnModel().getColumn(SEAT_COLUMN).setCellRenderer(Theme.pill(null)); // 마감은 빨강, 빈자리는 초록
+        add(Theme.scroll(table), BorderLayout.CENTER);
 
-        JButton addButton = new JButton("선택한 과목을 내 시간표에 추가");
-        JPanel bottom = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, ROW_GAP));
-        bottom.add(new JLabel("과목을 두 번 눌러도 추가됩니다."));
-        bottom.add(addButton);
+        JPanel bottom = new JPanel(new BorderLayout(8, 0));
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, ROW_GAP));
+        buttonRow.add(addButton);
+        hint.setForeground(Theme.MUTED);
+        bottom.add(hint, BorderLayout.CENTER);
+        bottom.add(buttonRow, BorderLayout.EAST);
         add(bottom, BorderLayout.SOUTH);
 
         keyword.getDocument().addDocumentListener(new DocumentListener() {
@@ -91,21 +104,26 @@ class CoursePanel extends JPanel {
             }
         });
         typeFilter.addActionListener(e -> refresh());
-        addButton.addActionListener(e -> addSelected());
+        seatFilter.addActionListener(e -> refresh());
+        addButton.addActionListener(e -> UiEvents.afterInput(this::addSelected));
+        table.getSelectionModel().addListSelectionListener(e -> updateButton());
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    addSelected();
+                if (e.getClickCount() == 2 && addButton.isEnabled()) {
+                    UiEvents.afterInput(CoursePanel.this::addSelected);
                 }
             }
         });
+        session.addListener(this::refresh); // 시간표가 바뀌면 빈자리 수와 버튼 상태도 바뀐다
         refresh();
     }
 
     private void refresh() {
         String text = keyword.getText().trim();
         String type = (String) typeFilter.getSelectedItem();
+        int seat = seatFilter.getSelectedIndex(); // 0 전체, 1 빈자리 있음, 2 마감
+        EnrollmentService enrollment = session.getEnrollment();
         List<Course> found = text.isEmpty() ? session.getCatalog().all() : session.getCatalog().search(text);
         shown.clear();
         model.setRowCount(0);
@@ -113,17 +131,40 @@ class CoursePanel extends JPanel {
             if (!ALL_TYPES.equals(type) && !c.getType().getLabel().equals(type)) {
                 continue;
             }
+            boolean full = enrollment.isFull(c);
+            if ((seat == 1 && full) || (seat == 2 && !full)) {
+                continue;
+            }
             shown.add(c);
             model.addRow(new Object[]{c.getCode(), c.getName(), c.getSection(), c.getType().getLabel(),
-                    c.getCredits(), c.timesToString(), c.getProfessor(), c.getRoom()});
+                    c.getCredits(), enrollment.describe(c), c.timesToString(), c.getProfessor(), c.getRoom()});
         }
         count.setText(shown.size() + "개 / 전체 " + session.getCatalog().size() + "개");
+        updateButton();
+    }
+
+    /** 편집 중: 고르면 넣을 수 있다. 확정 후: 빈자리가 있는 과목만 수강신청 버튼이 켜진다. */
+    private void updateButton() {
+        boolean confirmed = session.getMe().isTimetableConfirmed();
+        int row = table.getSelectedRow();
+        Course selected = row >= 0 && row < shown.size() ? shown.get(row) : null;
+        addButton.setText(confirmed ? "선택한 과목 수강신청" : "선택한 과목을 내 시간표에 넣기");
+        if (!confirmed) {
+            addButton.setEnabled(selected != null);
+            hint.setText("시간표 편집 중: 지금 듣는 과목을 넣으세요. 다 넣었으면 [내 시간표] 탭에서 저장(확정)합니다.");
+        } else if (selected != null && session.getEnrollment().isFull(selected)) {
+            addButton.setEnabled(false);
+            hint.setText("마감된 과목입니다. [교환 요청] 탭에서 이 과목을 희망 과목으로 요청을 올리세요.");
+        } else {
+            addButton.setEnabled(selected != null);
+            hint.setText("빈자리가 있는 과목만 수강신청할 수 있습니다. 마감된 과목은 교환 요청으로 상대를 찾으세요.");
+        }
     }
 
     private void addSelected() {
         int row = table.getSelectedRow();
-        if (row < 0) {
-            JOptionPane.showMessageDialog(this, "추가할 과목을 먼저 고르세요.", "안내", JOptionPane.INFORMATION_MESSAGE);
+        if (row < 0 || row >= shown.size()) {
+            JOptionPane.showMessageDialog(this, "과목을 먼저 선택하세요.", "안내", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
         TimetableActions.add(this, session, shown.get(row));

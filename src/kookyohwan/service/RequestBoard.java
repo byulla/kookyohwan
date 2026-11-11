@@ -33,6 +33,10 @@ public class RequestBoard {
 
     /** 내놓을 과목만 먼저 검사 (콘솔이 번호를 고른 직후 거절할 수 있게, AC3). 목록은 바꾸지 않는다. */
     public void validateGive(Student student, Course give) {
+        if (!student.isTimetableConfirmed()) {
+            throw new RequestRejectedException(student.getName(),
+                    "시간표를 저장(확정)한 뒤에 교환 요청을 등록할 수 있습니다");
+        }
         if (!student.getTimetable().contains(give.getCode())) {
             throw new RequestRejectedException(give.getName(), "내 시간표에 없는 과목입니다");
         }
@@ -116,6 +120,16 @@ public class RequestBoard {
 
     public boolean isGiving(String studentId, String courseCode) {
         return findGiving(studentId, courseCode).isPresent();
+    }
+
+    /** 교환 확정: 대기 중인 요청을 매칭완료로 바꾼다. ExchangeService.confirm이 부른다. */
+    public boolean complete(int id) {
+        Optional<SwapRequest> found = requests.find(id);
+        if (found.isEmpty() || !found.get().isWaiting()) {
+            return false;
+        }
+        found.get().complete();
+        return true;
     }
 
     /** R7 요청 취소(추가 후보). 대기 중인 요청만 취소할 수 있다. */

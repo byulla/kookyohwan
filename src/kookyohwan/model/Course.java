@@ -14,6 +14,8 @@ public class Course {
     private final String professor; // 담당교수. 시간표 화면 표시용 (없으면 "")
     private final String room;      // 강의실. 시간표 화면 표시용 (없으면 "")
     private final int credits;      // 학점. 최대 학점 제한에 쓴다 (파일에 없으면 0)
+    private final int capacity;     // 정원. 0이면 정원 정보 없음(제한 없음)
+    private final int baseEnrolled; // 이 프로그램에 등록되지 않은 다른 학생들의 수강 인원(준비 데이터)
 
     public Course(String code, String name, String section, CourseType type, List<TimeSlot> times) {
         this(code, name, section, type, times, "", "");
@@ -26,6 +28,11 @@ public class Course {
 
     public Course(String code, String name, String section, CourseType type, List<TimeSlot> times,
                   String professor, String room, int credits) {
+        this(code, name, section, type, times, professor, room, credits, 0, 0);
+    }
+
+    public Course(String code, String name, String section, CourseType type, List<TimeSlot> times,
+                  String professor, String room, int credits, int capacity, int baseEnrolled) {
         this.code = code;
         this.name = name;
         this.section = section;
@@ -34,6 +41,16 @@ public class Course {
         this.professor = professor;
         this.room = room;
         this.credits = credits;
+        this.capacity = capacity;
+        this.baseEnrolled = baseEnrolled;
+    }
+
+    public int getCapacity() {
+        return capacity;
+    }
+
+    public int getBaseEnrolled() {
+        return baseEnrolled;
     }
 
     public int getCredits() {

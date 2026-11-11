@@ -28,7 +28,9 @@ public class FileStorage implements Storage {
     public static final String STUDENTS_FILE = "students.csv";
     public static final String REQUESTS_FILE = "requests.csv";
 
-    private static final String STUDENTS_HEADER = "학번,이름,과목코드";
+    private static final String STUDENTS_HEADER = "학번,이름,과목코드,시간표상태";
+    private static final String CONFIRMED = "CONFIRMED"; // 시간표 확정
+    private static final String EDITING = "EDITING";     // 시간표 편집 중
     private static final String REQUESTS_HEADER = "번호,학번,내놓는과목코드,희망과목명,상태";
 
     private final Path dir;
@@ -41,7 +43,7 @@ public class FileStorage implements Storage {
     @Override
     public List<Course> loadCourses() throws IOException {
         List<Course> result = new ArrayList<>();
-        for (Row row : readRows(COURSES_FILE, 5, 8, true)) { // 교수·강의실·학점 칸은 없어도 읽는다
+        for (Row row : readRows(COURSES_FILE, 5, 10, true)) { // 교수·강의실·학점·정원·수강인원 칸은 없어도 읽는다
             try {
                 List<TimeSlot> times = new ArrayList<>();
                 for (String t : splitList(row.cells[4])) {
@@ -50,8 +52,10 @@ public class FileStorage implements Storage {
                 String professor = row.cells.length > 5 ? row.cells[5] : "";
                 String room = row.cells.length > 6 ? row.cells[6] : "";
                 int credits = row.cells.length > 7 ? Integer.parseInt(row.cells[7]) : 0;
+                int capacity = row.cells.length > 8 ? Integer.parseInt(row.cells[8]) : 0;
+                int enrolled = row.cells.length > 9 ? Integer.parseInt(row.cells[9]) : 0;
                 result.add(new Course(row.cells[0], row.cells[1], row.cells[2],
-                        CourseType.valueOf(row.cells[3]), times, professor, room, credits));
+                        CourseType.valueOf(row.cells[3]), times, professor, room, credits, capacity, enrolled));
             } catch (IllegalArgumentException e) { // 요일·교시·구분 형식 오류 (NumberFormatException 포함)
                 throw row.error(e.getMessage());
             }
@@ -64,7 +68,7 @@ public class FileStorage implements Storage {
     public List<Student> loadStudents(List<Course> courses) throws IOException {
         Map<String, Course> byCode = indexByCode(courses);
         List<Student> result = new ArrayList<>();
-        for (Row row : readRows(STUDENTS_FILE, 3, 3, false)) {
+        for (Row row : readRows(STUDENTS_FILE, 3, 4, false)) {
             Timetable timetable = new Timetable();
             for (String code : splitList(row.cells[2])) {
                 Course course = byCode.get(code);
@@ -75,7 +79,9 @@ public class FileStorage implements Storage {
                     throw row.error("중복되거나 시간이 겹치는 과목 " + code);
                 }
             }
-            result.add(new Student(row.cells[0], row.cells[1], timetable));
+            // 상태 칸이 없는 예전 파일: 과목이 들어 있으면 확정된 시간표로 본다
+            boolean confirmed = row.cells.length > 3 ? CONFIRMED.equals(row.cells[3]) : timetable.size() > 0;
+            result.add(new Student(row.cells[0], row.cells[1], timetable, confirmed));
         }
         return result;
     }
@@ -109,7 +115,8 @@ public class FileStorage implements Storage {
             for (Course c : s.getTimetable().getCourses()) {
                 codes.add(c.getCode());
             }
-            lines.add(s.getId() + "," + quote(s.getName()) + "," + String.join(";", codes));
+            lines.add(s.getId() + "," + quote(s.getName()) + "," + String.join(";", codes) + ","
+                    + (s.isTimetableConfirmed() ? CONFIRMED : EDITING));
         }
         write(STUDENTS_FILE, lines);
     }

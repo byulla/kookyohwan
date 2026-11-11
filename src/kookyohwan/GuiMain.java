@@ -3,6 +3,7 @@ package kookyohwan;
 import kookyohwan.gui.LoginGate;
 import kookyohwan.gui.MainPanel;
 import kookyohwan.gui.Session;
+import kookyohwan.gui.Theme;
 import kookyohwan.model.Course;
 import kookyohwan.model.Student;
 import kookyohwan.model.SwapRequest;
@@ -44,6 +45,7 @@ public class GuiMain {
         } catch (Exception e) {
             // 시스템 모양을 못 쓰면 기본 모양 그대로
         }
+        Theme.install();
         Storage storage = new FileStorage(dataDir);
         CourseCatalog catalog = new CourseCatalog();
         StudentRegistry registry = new StudentRegistry();
@@ -62,12 +64,10 @@ public class GuiMain {
                 board.put(r);
             }
         } catch (NoSuchFileException e) {
-            JOptionPane.showMessageDialog(null, dataDir + "/" + FileStorage.COURSES_FILE + " 파일을 찾을 수 없습니다.\n"
-                    + "프로젝트 루트(kookyohwan/)에서 실행했는지 확인하세요.", "구교환", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, FileStorage.COURSES_FILE + " 파일을 찾을 수 없습니다.", "구교환", JOptionPane.ERROR_MESSAGE);
             return;
         } catch (IOException e) {
-            JOptionPane.showMessageDialog(null, "파일을 읽지 못했습니다.\n" + e.getMessage()
-                    + "\n파일을 고친 뒤 다시 실행하세요.", "구교환", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(null, "파일을 읽지 못했습니다.\n" + e.getMessage(), "구교환", JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -86,7 +86,7 @@ public class GuiMain {
             public void windowClosing(WindowEvent e) { // 창을 닫으면 저장하고 종료 (콘솔 메뉴 0)
                 String result = save(storage, registry, board);
                 if (result.startsWith("[오류]")) {
-                    int answer = JOptionPane.showConfirmDialog(frame, result + "\n저장하지 않고 종료할까요?",
+                    int answer = JOptionPane.showConfirmDialog(frame, "저장하지 못했습니다. 그대로 종료할까요?",
                             "구교환", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
                     if (answer != JOptionPane.YES_OPTION) {
                         return;

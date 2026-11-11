@@ -15,7 +15,7 @@ public final class LoginGate {
     /** 취소하면 empty. 처음 보는 학번이면 이름을 받아 빈 시간표로 등록한다. */
     public static Optional<Student> ask(Component parent, StudentRegistry registry) {
         while (true) {
-            String id = JOptionPane.showInputDialog(parent, "학번을 입력하세요. (준비 데이터: 학생A = 202612345)",
+            String id = JOptionPane.showInputDialog(parent, "학번을 입력하세요.",
                     "구교환 - 학번 입력", JOptionPane.QUESTION_MESSAGE);
             if (id == null || id.trim().isEmpty()) {
                 return Optional.empty();
@@ -30,7 +30,7 @@ public final class LoginGate {
                 return found;
             }
             String name = JOptionPane.showInputDialog(parent,
-                    "등록되지 않은 학번입니다 (" + id + ").\n이름을 입력하면 빈 시간표로 시작합니다.",
+                    "처음 보는 학번입니다. 이름을 입력하세요.",
                     "새 학생 등록", JOptionPane.QUESTION_MESSAGE);
             if (name == null || name.trim().isEmpty()) {
                 continue; // 등록하지 않고 학번을 다시 묻는다

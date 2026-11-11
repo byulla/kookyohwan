@@ -26,7 +26,7 @@ class TimetableCanvas extends JComponent {
     private static final int FIRST_HOUR = 9;     // 1교시가 시작하는 시각
     private static final int LEFT = 82;          // 시각 열
     private static final int TOP = 40;           // 요일 머리글
-    private static final int ROW_HEIGHT = 60;
+    private static final int MIN_ROW_HEIGHT = 46; // 창이 크면 남는 높이만큼 줄을 키워 9교시가 한 화면에 들어오게 한다
     private static final int MIN_CELL_WIDTH = 150;
     private static final Color[] BLOCK = {
             new Color(0xDBEBF1), new Color(0xFFF8CC), new Color(0xDDE6F6), new Color(0xFFE6E6),
@@ -79,7 +79,7 @@ class TimetableCanvas extends JComponent {
 
     @Override
     public Dimension getPreferredSize() {
-        return new Dimension(LEFT + days().size() * MIN_CELL_WIDTH + 1, TOP + lastPeriod() * ROW_HEIGHT + 1);
+        return new Dimension(LEFT + days().size() * MIN_CELL_WIDTH + 1, TOP + lastPeriod() * MIN_ROW_HEIGHT + 1);
     }
 
     @Override
@@ -91,8 +91,9 @@ class TimetableCanvas extends JComponent {
         List<Day> days = days();
         int periods = lastPeriod();
         int cellWidth = Math.max(MIN_CELL_WIDTH, (getWidth() - LEFT - 1) / days.size());
+        int rowHeight = Math.max(MIN_ROW_HEIGHT, (getHeight() - TOP - 1) / periods);
         int right = LEFT + cellWidth * days.size();
-        int bottom = TOP + ROW_HEIGHT * periods;
+        int bottom = TOP + rowHeight * periods;
         Font base = getFont().deriveFont(Font.PLAIN, 13f);
         Font nameFont = base.deriveFont(Font.BOLD, 14f);
         Font smallBold = base.deriveFont(Font.BOLD, 12f);
@@ -114,13 +115,13 @@ class TimetableCanvas extends JComponent {
             drawCentered(g, days.get(i).getLabel(), LEFT + i * cellWidth, cellWidth, TOP / 2 + 5);
         }
         for (int p = 1; p <= periods; p++) {
-            drawCentered(g, hourLabel(p), 0, LEFT, TOP + (p - 1) * ROW_HEIGHT + ROW_HEIGHT / 2 + 5);
+            drawCentered(g, hourLabel(p), 0, LEFT, TOP + (p - 1) * rowHeight + rowHeight / 2 + 5);
         }
 
         // 격자선
         g.setColor(LINE);
         for (int p = 0; p <= periods; p++) {
-            g.drawLine(0, TOP + p * ROW_HEIGHT, right, TOP + p * ROW_HEIGHT);
+            g.drawLine(0, TOP + p * rowHeight, right, TOP + p * rowHeight);
         }
         g.drawLine(0, 0, right, 0);
         g.drawLine(0, 0, 0, bottom);
@@ -138,9 +139,9 @@ class TimetableCanvas extends JComponent {
             Course c = courses.get(index);
             for (TimeSlot t : c.getTimes()) {
                 int x = LEFT + days.indexOf(t.getDay()) * cellWidth + 1;
-                int y = TOP + (t.getStart() - 1) * ROW_HEIGHT + 1;
+                int y = TOP + (t.getStart() - 1) * rowHeight + 1;
                 int w = cellWidth - 1;
-                int h = (t.getEnd() - t.getStart() + 1) * ROW_HEIGHT - 1;
+                int h = (t.getEnd() - t.getStart() + 1) * rowHeight - 1;
                 g.setColor(BLOCK[index % BLOCK.length]);
                 g.fillRect(x, y, w, h);
 
@@ -163,7 +164,7 @@ class TimetableCanvas extends JComponent {
                 if (x + 10 + textWidth - tx > 20) {
                     g.drawString(fit(g.getFontMetrics(), place, x + 10 + textWidth - tx), tx, y + 41);
                 }
-                if (h > ROW_HEIGHT) { // 두 교시 이상이면 학수번호와 구분도 한 줄 더
+                if (h >= 64) { // 세 줄이 들어갈 높이면 학수번호와 구분도 한 줄 더
                     g.setColor(LABEL);
                     g.drawString(fit(g.getFontMetrics(), c.getCode() + " · " + c.getType().getLabel(), textWidth),
                             x + 10, y + 59);

@@ -76,6 +76,11 @@ public class Timetable {
         return true;
     }
 
+    /** 수강 취소: 과목 하나를 뺀다. 시간표에 없으면 false. (내놓는 중인 과목인지는 부르는 쪽이 RequestBoard에 먼저 묻는다) */
+    public boolean remove(Course course) {
+        return courses.removeIf(c -> c.getCode().equals(course.getCode()));
+    }
+
     public int getTotalCredits() {
         int total = 0;
         for (Course c : courses) {
@@ -95,13 +100,9 @@ public class Timetable {
         return total;
     }
 
-    /**
-     * 학점 제한 판정은 여기 한 곳. 바꾼 뒤 총 학점이 최대를 넘고, 지금보다 늘어날 때만 초과로 본다 —
-     * 제한 전에 저장돼 이미 넘어 있는 시간표도 학점이 늘지 않는 교체·교환은 할 수 있게.
-     */
+    /** 학점 제한 판정은 여기 한 곳. 바꾼 뒤 총 학점이 최대를 넘으면 예외 없이 초과다 (추가·교체·교환 모두). */
     public boolean exceedsLimit(Course incoming, List<Course> removing) {
-        int after = creditsAfter(incoming, removing);
-        return after > MAX_CREDITS && after > getTotalCredits();
+        return creditsAfter(incoming, removing) > MAX_CREDITS;
     }
 
     public boolean contains(String code) {

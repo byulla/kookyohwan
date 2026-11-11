@@ -3,6 +3,8 @@ package kookyohwan.gui;
 import kookyohwan.model.Course;
 import kookyohwan.model.Student;
 import kookyohwan.service.CourseCatalog;
+import kookyohwan.service.EnrollmentService;
+import kookyohwan.service.ExchangeService;
 import kookyohwan.service.MatchService;
 import kookyohwan.service.RequestBoard;
 import kookyohwan.service.StudentRegistry;
@@ -25,6 +27,8 @@ public class Session {
     private final StudentRegistry registry;
     private final RequestBoard board;
     private final MatchService matcher;
+    private final ExchangeService exchange;
+    private final EnrollmentService enrollment;
     private final Function<Student, String> saver; // 저장하고 결과 메시지를 돌려준다
     private final List<Runnable> listeners = new ArrayList<>();
     private Consumer<String> statusSink = message -> { };
@@ -37,6 +41,8 @@ public class Session {
         this.registry = registry;
         this.board = board;
         this.matcher = matcher;
+        this.exchange = new ExchangeService(board, registry, matcher);
+        this.enrollment = new EnrollmentService(registry);
         this.saver = saver;
     }
 
@@ -54,6 +60,14 @@ public class Session {
 
     public MatchService getMatcher() {
         return matcher;
+    }
+
+    public EnrollmentService getEnrollment() {
+        return enrollment;
+    }
+
+    public ExchangeService getExchange() {
+        return exchange;
     }
 
     public Student getMe() {

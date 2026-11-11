@@ -45,6 +45,11 @@ public class SwapRequest {
         this.status = RequestStatus.CANCELLED;
     }
 
+    /** 교환 확정. 상태 변경은 RequestBoard.complete를 거쳐서만 호출한다. */
+    public void complete() {
+        this.status = RequestStatus.MATCHED;
+    }
+
     /** "프랑스어 입문 (화 1-2) -> 생명과 나눔" */
     public String summary() {
         return giveCourse.getName() + " (" + giveCourse.timesToString() + ") -> " + wantName;
