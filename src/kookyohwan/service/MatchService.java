@@ -36,6 +36,19 @@ public class MatchService {
             }
             Course receive = other.getGiveCourse(); // 내가 받을 과목(상대 분반의 실제 시간)
 
+            // 1-2) 내놓는 과목이 실제로 시간표에 있어야 교환이 된다. 파일을 손으로 고쳐 어긋난 요청은 제외
+            if (!myTimetable.contains(mine.getGiveCourse().getCode())) {
+                results.add(MatchResult.excluded(other, receive, MatchVerdict.EXCLUDED_MINE,
+                        "내놓는 과목이 내 시간표에 없음"));
+                continue;
+            }
+            Optional<Student> giver = registry.find(other.getStudentId());
+            if (giver.isPresent() && !giver.get().getTimetable().contains(receive.getCode())) {
+                results.add(MatchResult.excluded(other, receive, MatchVerdict.EXCLUDED_PARTNER,
+                        "상대가 내놓는 과목이 상대 시간표에 없음"));
+                continue;
+            }
+
             // 2) 내 시간표 겹침 (내놓는 과목 자리는 비므로 제외하고 비교)
             Optional<Course> mineConflict = myTimetable.findConflict(receive, mine.getGiveCourse());
             if (mineConflict.isPresent()) {

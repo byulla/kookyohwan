@@ -15,8 +15,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * CSV 구현(계획서 14절 형식). UTF-8, 첫 줄 헤더, 구분자 쉼표, 한 칸에 값이 여러 개면 세미콜론.
@@ -43,7 +45,14 @@ public class FileStorage implements Storage {
     @Override
     public List<Course> loadCourses() throws IOException {
         List<Course> result = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         for (Row row : readRows(COURSES_FILE, 5, 10, true)) { // 교수·강의실·학점·정원·수강인원 칸은 없어도 읽는다
+            if (row.cells[0].isEmpty()) {
+                throw row.error("과목 코드가 비어 있습니다");
+            }
+            if (!seen.add(row.cells[0])) {
+                throw row.error("과목 코드가 중복됩니다 " + row.cells[0]);
+            }
             try {
                 List<TimeSlot> times = new ArrayList<>();
                 for (String t : splitList(row.cells[4])) {
@@ -51,12 +60,13 @@ public class FileStorage implements Storage {
                 }
                 String professor = row.cells.length > 5 ? row.cells[5] : "";
                 String room = row.cells.length > 6 ? row.cells[6] : "";
-                int credits = row.cells.length > 7 ? Integer.parseInt(row.cells[7]) : 0;
-                int capacity = row.cells.length > 8 ? Integer.parseInt(row.cells[8]) : 0;
-                int enrolled = row.cells.length > 9 ? Integer.parseInt(row.cells[9]) : 0;
+                int credits = row.cells.length > 7 ? number(row.cells[7], "학점") : 0;
+                int capacity = row.cells.length > 8 ? number(row.cells[8], "정원") : 0;
+                int enrolled = row.cells.length > 9 ? number(row.cells[9], "수강인원") : 0;
                 result.add(new Course(row.cells[0], row.cells[1], row.cells[2],
-                        CourseType.valueOf(row.cells[3]), times, professor, room, credits, capacity, enrolled));
-            } catch (IllegalArgumentException e) { // 요일·교시·구분 형식 오류 (NumberFormatException 포함)
+                        choice(CourseType.class, row.cells[3], "구분"), times, professor, room,
+                        credits, capacity, enrolled));
+            } catch (RuntimeException e) { // 요일·교시·구분·숫자 형식 오류. 어떤 예외든 줄 번호를 붙여 알린다
                 throw row.error(e.getMessage());
             }
         }
@@ -68,7 +78,17 @@ public class FileStorage implements Storage {
     public List<Student> loadStudents(List<Course> courses) throws IOException {
         Map<String, Course> byCode = indexByCode(courses);
         List<Student> result = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
         for (Row row : readRows(STUDENTS_FILE, 3, 4, false)) {
+            if (row.cells[0].isEmpty()) {
+                throw row.error("학번이 비어 있습니다");
+            }
+            if (!seen.add(row.cells[0])) { // 그대로 읽으면 뒤의 줄이 앞의 학생을 덮어써 버린다
+                throw row.error("학번이 중복됩니다 " + row.cells[0]);
+            }
+            if (row.cells.length > 3 && !CONFIRMED.equals(row.cells[3]) && !EDITING.equals(row.cells[3])) {
+                throw row.error("시간표상태는 " + CONFIRMED + " 또는 " + EDITING + " 이어야 합니다 (" + row.cells[3] + ")");
+            }
             Timetable timetable = new Timetable();
             for (String code : splitList(row.cells[2])) {
                 Course course = byCode.get(code);
@@ -91,15 +111,23 @@ public class FileStorage implements Storage {
     public List<SwapRequest> loadRequests(List<Course> courses) throws IOException {
         Map<String, Course> byCode = indexByCode(courses);
         List<SwapRequest> result = new ArrayList<>();
+        Set<Integer> seen = new HashSet<>();
         for (Row row : readRows(REQUESTS_FILE, 5, 5, false)) {
             Course give = byCode.get(row.cells[2]);
             if (give == null) {
                 throw row.error("과목 목록에 없는 코드 " + row.cells[2]);
             }
             try {
-                result.add(new SwapRequest(Integer.parseInt(row.cells[0]), row.cells[1], give,
-                        row.cells[3], RequestStatus.valueOf(row.cells[4])));
-            } catch (IllegalArgumentException e) { // 번호가 숫자가 아니거나 상태 이름이 enum에 없음
+                int id = number(row.cells[0], "요청 번호");
+                if (id < 1) {
+                    throw new IllegalArgumentException("요청 번호는 1 이상이어야 합니다 (" + id + ")");
+                }
+                if (!seen.add(id)) { // 그대로 읽으면 뒤의 줄이 앞의 요청을 덮어써 버린다
+                    throw new IllegalArgumentException("요청 번호가 중복됩니다 #" + id);
+                }
+                result.add(new SwapRequest(id, row.cells[1], give, row.cells[3],
+                        choice(RequestStatus.class, row.cells[4], "상태")));
+            } catch (RuntimeException e) { // 번호가 숫자가 아니거나 상태 이름이 enum에 없음
                 throw row.error(e.getMessage());
             }
         }
@@ -133,6 +161,29 @@ public class FileStorage implements Storage {
         write(REQUESTS_FILE, lines);
     }
 
+    /** 0 이상의 정수. 아니면 무슨 칸이 틀렸는지 알 수 있는 메시지로 바꿔 던진다. */
+    private static int number(String cell, String what) {
+        try {
+            int value = Integer.parseInt(cell);
+            if (value < 0) {
+                throw new NumberFormatException();
+            }
+            return value;
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException(what + " 값은 0 이상의 숫자여야 합니다 (" + cell + ")");
+        }
+    }
+
+    /** enum 이름으로 변환. 없는 이름이면 가능한 값 목록을 알려 준다. */
+    private static <E extends Enum<E>> E choice(Class<E> type, String cell, String what) {
+        try {
+            return Enum.valueOf(type, cell);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalArgumentException(what + " 값이 잘못되었습니다 (" + cell + "). 가능한 값: "
+                    + java.util.Arrays.toString(type.getEnumConstants()));
+        }
+    }
+
     /** 헤더와 빈 줄을 뺀 데이터 줄. 칸 수가 다르면 줄 번호와 함께 오류. */
     private List<Row> readRows(String fileName, int minColumns, int maxColumns, boolean required)
             throws IOException {
@@ -141,7 +192,14 @@ public class FileStorage implements Storage {
         if (!required && !Files.exists(file)) {
             return rows;
         }
-        List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        List<String> lines;
+        try {
+            lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+        } catch (java.nio.charset.MalformedInputException e) {
+            throw new IOException(fileName + ": UTF-8 인코딩이 아닙니다. UTF-8로 다시 저장하세요");
+        } catch (java.nio.file.AccessDeniedException e) {
+            throw new IOException(fileName + ": 읽을 권한이 없습니다");
+        }
         for (int i = 1; i < lines.size(); i++) { // 0번 줄은 헤더
             String line = lines.get(i);
             if (line.trim().isEmpty()) {
@@ -158,8 +216,12 @@ public class FileStorage implements Storage {
     }
 
     private void write(String fileName, List<String> lines) throws IOException {
-        Files.createDirectories(dir);
-        Files.write(dir.resolve(fileName), lines, StandardCharsets.UTF_8); // 통째로 다시 쓴다
+        try {
+            Files.createDirectories(dir);
+            Files.write(dir.resolve(fileName), lines, StandardCharsets.UTF_8); // 통째로 다시 쓴다
+        } catch (java.nio.file.AccessDeniedException e) {
+            throw new IOException(fileName + ": 쓸 권한이 없습니다");
+        }
     }
 
     /**
