@@ -45,9 +45,9 @@ public class TimeSlot {
         return new TimeSlot(day, start, end);
     }
 
-    /** "월 3-4" (화면용. 파일 형식 "월3-4"와는 공백 하나 차이) */
+    /** "월 3-4" (화면용. 파일 형식 "월3-4"와는 공백 하나 차이). 한 교시짜리는 "월 5". */
     @Override
     public String toString() {
-        return day.getLabel() + " " + start + "-" + end;
+        return day.getLabel() + " " + (start == end ? String.valueOf(start) : start + "-" + end);
     }
 }

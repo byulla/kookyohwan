@@ -11,13 +11,40 @@ public class Course {
     private final String section;
     private final CourseType type;
     private final List<TimeSlot> times;
+    private final String professor; // 담당교수. 시간표 화면 표시용 (없으면 "")
+    private final String room;      // 강의실. 시간표 화면 표시용 (없으면 "")
+    private final int credits;      // 학점. 최대 학점 제한에 쓴다 (파일에 없으면 0)
 
     public Course(String code, String name, String section, CourseType type, List<TimeSlot> times) {
+        this(code, name, section, type, times, "", "");
+    }
+
+    public Course(String code, String name, String section, CourseType type, List<TimeSlot> times,
+                  String professor, String room) {
+        this(code, name, section, type, times, professor, room, 0);
+    }
+
+    public Course(String code, String name, String section, CourseType type, List<TimeSlot> times,
+                  String professor, String room, int credits) {
         this.code = code;
         this.name = name;
         this.section = section;
         this.type = type;
         this.times = Collections.unmodifiableList(new ArrayList<>(times));
+        this.professor = professor;
+        this.room = room;
+        this.credits = credits;
+    }
+
+    public int getCredits() {
+        return credits;
+    }
+
+    public String getProfessor() {
+        return professor;
+    }
+    public String getRoom() {
+        return room;
     }
 
     public String getCode() {

@@ -37,6 +37,17 @@ public class CourseCatalog {
         return result;
     }
 
+    /** 메뉴 1 검색: 교과목명에 keyword가 들어 있거나 학수번호가 keyword로 시작하는 과목. 과목이 수천 개라 전체 출력 대신 쓴다. */
+    public List<Course> search(String keyword) {
+        List<Course> result = new ArrayList<>();
+        for (Course c : courses.all()) {
+            if (c.getName().contains(keyword) || c.getCode().startsWith(keyword)) {
+                result.add(c);
+            }
+        }
+        return result;
+    }
+
     public boolean existsName(String name) {
         return !findByName(name).isEmpty();
     }
