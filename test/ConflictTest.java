@@ -7,13 +7,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 
-/**
- * 충돌(시간 겹침·18학점·중복 수강·정원·요청 상태) 테스트 170건. 외부 라이브러리 없이 main으로 돈다.
- * 프로젝트 루트에서 (src를 먼저 out/에 컴파일한 뒤):
- *   javac -encoding UTF-8 -cp out -d out-test test/ConflictTest.java
- *   java -cp out:out-test ConflictTest          (Windows는 out;out-test)
- * 가상 과목표로 만든 임시 폴더에서만 쓰고, data/는 읽기만 한다. 실패가 있으면 종료 코드 1.
- */
 public class ConflictTest {
     static int pass = 0, fail = 0;
     static String section = "";
@@ -53,7 +46,6 @@ public class ConflictTest {
         return null;
     }
 
-    // ------------------------------------------------------------ 가상 과목표
     static final String[] COURSES = {
         "10001001,전공A,001,MAJOR,월1-3,교수,강의실,3,0,0",
         "10002001,전공B,001,MAJOR,화1-3,교수,강의실,3,0,0",
@@ -105,7 +97,6 @@ public class ConflictTest {
         return dir;
     }
 
-    /** 서비스 한 벌 */
     static class W {
         final CourseCatalog catalog = new CourseCatalog();
         final StudentRegistry registry = new StudentRegistry();
@@ -162,7 +153,6 @@ public class ConflictTest {
         }
     }
 
-    // ------------------------------------------------------------ 독립 판정기(프로그램 코드를 쓰지 않고 다시 계산)
     static Set<Integer> cells(Course c) {
         Set<Integer> out = new HashSet<>();
         for (TimeSlot t : c.getTimes())
@@ -178,7 +168,7 @@ public class ConflictTest {
         String code = c.getCode(), sec = c.getSection();
         return (code.endsWith(sec) ? code.substring(0, code.length() - sec.length()) : code) + "/" + c.getName();
     }
-    /** 시간표 한 개의 위반 목록. strict면 18학점·같은 과목 중복도 본다. */
+
     static List<String> violations(Student s, boolean strict) {
         List<String> out = new ArrayList<>();
         List<Course> cs = s.getTimetable().getCourses();
@@ -209,7 +199,7 @@ public class ConflictTest {
         }
         return out;
     }
-    /** '가능' 판정을 독립적으로 다시 계산: 교환했다고 치고 두 시간표에 위반이 생기는지. */
+
     static List<String> wouldBreak(W w, SwapRequest mine, SwapRequest other) {
         List<String> out = new ArrayList<>();
         out.addAll(after(w, mine.getStudentId(), mine.getGiveCourse(), other.getGiveCourse()));
@@ -240,7 +230,6 @@ public class ConflictTest {
         return v;
     }
 
-    // ============================================================ 본문
     public static void main(String[] args) throws Exception {
         base = args.length > 0 ? Paths.get(args[0]) : Files.createTempDirectory("kookyohwan-test");
         Files.createDirectories(base);
@@ -252,6 +241,7 @@ public class ConflictTest {
         matchMatrix();
         matchSubjectAndCredits();
         exchange();
+        dropAndSwap();
         enrollment();
         storage();
         console();
@@ -264,7 +254,6 @@ public class ConflictTest {
         System.exit(fail == 0 ? 0 : 1);
     }
 
-    // ------------------------------------------------------------ 1
     static void timeSlots() {
         sec("1. 교시 겹침 (TimeSlot)");
         TimeSlot a = new TimeSlot(Day.MON, 3, 4);
@@ -296,7 +285,6 @@ public class ConflictTest {
         t("Day.fromLabel 모르는 요일 거절", () -> throwsIAE(() -> Day.fromLabel("X"), "X"));
     }
 
-    // ------------------------------------------------------------ 2
     static void courseOverlap() throws IOException {
         sec("2. 과목 겹침 (Course.overlaps)");
         W w = new W();
@@ -320,7 +308,6 @@ public class ConflictTest {
         });
     }
 
-    // ------------------------------------------------------------ 3
     static void timetableRules() throws IOException {
         sec("3. 시간표 추가·교체·빼기 (Timetable)");
         W w = new W();
@@ -414,7 +401,6 @@ public class ConflictTest {
         t("주말 과목과 평일 과목은 안 겹침", () -> { Timetable tt = new Timetable(); ok(tt.add(w.c(MIL)), "토1-2"); ok(tt.add(w.c(SAT)), "토3-4"); ok(tt.add(w.c(M1)), "월"); });
     }
 
-    // ------------------------------------------------------------ 4
     static void credits() throws IOException {
         sec("4. 18학점 제한");
         W w = new W();
@@ -430,9 +416,9 @@ public class ConflictTest {
         });
         t("17학점 + 2학점 거절, 16학점 + 2학점 허용", () -> {
             Timetable tt = new Timetable();
-            for (String c : new String[]{M1, M2, M3, M4, M5, ONE}) tt.add(w.c(c)); // 16
+            for (String c : new String[]{M1, M2, M3, M4, M5, ONE}) tt.add(w.c(c));
             Timetable t17 = new Timetable();
-            for (String c : new String[]{M1, M2, M3, M4, M5, ONE, ADJ}) t17.add(w.c(c)); // 17
+            for (String c : new String[]{M1, M2, M3, M4, M5, ONE, ADJ}) t17.add(w.c(c));
             eq(17, t17.getTotalCredits(), "17");
             ok(!t17.add(w.c(FR1)), "17+2"); ok(tt.add(w.c(FR1)), "16+2"); eq(18, tt.getTotalCredits(), "18");
         });
@@ -443,7 +429,7 @@ public class ConflictTest {
         });
         t("교체: 2학점 빼고 3학점 넣어 19가 되면 거절, 시간표 그대로", () -> {
             Timetable tt = new Timetable();
-            for (String c : new String[]{M1, M2, M3, M4, M5, ONE, FR1}) tt.add(w.c(c)); // 18
+            for (String c : new String[]{M1, M2, M3, M4, M5, ONE, FR1}) tt.add(w.c(c));
             ok(!tt.replace(Collections.singletonList(w.c(FR1)), w.c(WIDE)) , "19학점이 됨");
             ok(tt.contains(FR1) && !tt.contains(WIDE), "시간표가 바뀜");
         });
@@ -462,12 +448,11 @@ public class ConflictTest {
         t("21학점 시간표: 과목을 빼서 18 이하가 되면 다시 넣을 수 있다", () -> {
             Timetable tt = new Timetable();
             for (String c : new String[]{M1, M2, M3, M4, M5, JP1, BIG}) tt.restore(w.c(c));
-            tt.remove(w.c(BIG)); tt.remove(w.c(JP1)); // 15
+            tt.remove(w.c(BIG)); tt.remove(w.c(JP1));
             ok(tt.add(w.c(JP2)), "15+3"); eq(18, tt.getTotalCredits(), "학점");
         });
     }
 
-    // ------------------------------------------------------------ 5
     static void requestRules() throws IOException {
         sec("5. 교환 요청 등록 규칙 (RequestBoard)");
         t("확정 전 시간표는 요청 불가", () -> { W w = new W(); Student s = w.stu("1", false, M1, FR1);
@@ -517,7 +502,6 @@ public class ConflictTest {
             ok(w.catalog.resolveName("2000200").isEmpty() && w.catalog.resolveName("").isEmpty(), "모르는 입력"); });
     }
 
-    // ------------------------------------------------------------ 6
     static void matchMatrix() throws IOException {
         sec("6. 매칭 판정표 (가능 / 내 쪽 제외 / 상대 쪽 제외 / 후보 아님)");
         W w = new W();
@@ -528,12 +512,12 @@ public class ConflictTest {
         w.stu("202", true, LF2);        SwapRequest p2 = w.raw("202", LF2, "프랑스어");
         w.stu("203", true, LF3);        SwapRequest p3 = w.raw("203", LF3, "프랑스어");
         w.stu("204", true, LF4, WIDE);  SwapRequest p4 = w.raw("204", LF4, "프랑스어");
-        SwapRequest p6 = w.raw("299", LF1, "프랑스어"); // 시간표 모르는 학번
+        SwapRequest p6 = w.raw("299", LF1, "프랑스어");
         w.stu("207", true, LF1);        SwapRequest p7 = w.raw("207", LF1, "일본어");
         w.stu("208", true, JP1);        SwapRequest p8 = w.raw("208", JP1, "프랑스어");
         w.stu("209", true, LF1);        SwapRequest p9 = w.raw("209", LF1, "프랑스어", RequestStatus.CANCELLED);
         w.stu("210", true, LF1);        SwapRequest p10 = w.raw("210", LF1, "프랑스어", RequestStatus.MATCHED);
-        w.stu("211", true, M2);         SwapRequest p11 = w.raw("211", LF1, "프랑스어"); // 내놓는 과목이 시간표에 없음
+        w.stu("211", true, M2);         SwapRequest p11 = w.raw("211", LF1, "프랑스어");
         String before = w.snapshot();
         List<MatchResult> rs = w.match(mine);
 
@@ -577,10 +561,10 @@ public class ConflictTest {
             x.stu("2", true, SAT, M1); SwapRequest b = x.raw("2", SAT, "프랑스어");
             ok(x.resultFor(a, b).isPossible(), "주말은 안 겹침");
             x.stu("3", true, M2, MS); SwapRequest c = x.raw("3", MS, "생명");
-            x.stu("4", true, LF1, M3); SwapRequest d = x.raw("4", LF1, "다중"); // 4가 다중을 받으면 수7-8, 월5: 안 겹침
+            x.stu("4", true, LF1, M3); SwapRequest d = x.raw("4", LF1, "다중");
             ok(x.resultFor(d, c).isPossible(), "안 겹침");
-            x.stu("5", true, LF4, TCH, M1); // 월7-8, 월1-3: 월5 안 겹침
-            x.stu("6", true, LF2); SwapRequest f = x.raw("6", LF2, "다중"); // 6: 생명002(월2-3) 내놓고 다중
+            x.stu("5", true, LF4, TCH, M1);
+            x.stu("6", true, LF2); SwapRequest f = x.raw("6", LF2, "다중");
             ok(x.resultFor(f, c).isPossible(), "안 겹침");
             x.stu("7", true, LF1, M1); Course tmp = x.c(LF1); ok(tmp != null, "");
             x.stu("8", true, LF4);
@@ -594,11 +578,10 @@ public class ConflictTest {
             ok(!tt.add(sat), "토3-4 vs 토4-5"); });
     }
 
-    // ------------------------------------------------------------ 7
     static void matchSubjectAndCredits() throws IOException {
         sec("7. 매칭: 학점 초과·중복 수강");
         t("교환 후 내 학점이 18을 넘으면 제외(내 쪽)", () -> { W w = new W();
-            w.stu("1", true, M1, M2, M3, M4, M5, ONE, FR1); // 18
+            w.stu("1", true, M1, M2, M3, M4, M5, ONE, FR1);
             SwapRequest a = w.raw("1", ONE, "일본어");
             w.stu("2", true, JP1); SwapRequest b = w.raw("2", JP1, "한학점");
             MatchResult r = w.resultFor(a, b); eq(MatchVerdict.EXCLUDED_MINE, r.getVerdict(), "판정"); has(r.getReason(), "내 학점 초과"); has(r.getReason(), "20학점"); });
@@ -607,7 +590,7 @@ public class ConflictTest {
             w.stu("2", true, M1, M2, M3, M4, M5, ONE, FR1); SwapRequest b = w.raw("2", ONE, "일본어");
             MatchResult r = w.resultFor(a, b); eq(MatchVerdict.EXCLUDED_PARTNER, r.getVerdict(), "판정"); has(r.getReason(), "상대 학점 초과"); has(r.getReason(), "20학점"); });
         t("정확히 18학점이 되는 교환은 가능", () -> { W w = new W();
-            w.stu("1", true, M1, M2, M3, M4, M5, ONE); // 16
+            w.stu("1", true, M1, M2, M3, M4, M5, ONE);
             SwapRequest a = w.raw("1", ONE, "일본어");
             w.stu("2", true, JP2); SwapRequest b = w.raw("2", JP2, "한학점");
             ok(w.resultFor(a, b).isPossible(), "18학점인데 제외"); });
@@ -616,14 +599,14 @@ public class ConflictTest {
             w.stu("2", true, LF1); SwapRequest b = w.raw("2", LF1, "프랑스어");
             ok(w.resultFor(a, b).isPossible(), w.resultFor(a, b).getReason()); });
         t("21학점(제한 전 저장) 학생은 같은 학점 교환도 제외", () -> { W w = new W();
-            w.stu("1", true, M1, M2, M3, M4, M5, JP1, BIG, ONE == null ? M1 : FR1); // 3*5+3+3+2 = 23
+            w.stu("1", true, M1, M2, M3, M4, M5, JP1, BIG, ONE == null ? M1 : FR1);
             SwapRequest a = w.raw("1", FR1, "생명");
             w.stu("2", true, LF1); SwapRequest b = w.raw("2", LF1, "프랑스어");
             ok(!w.resultFor(a, b).isPossible(), "가능으로 나옴"); });
         t("겹침과 학점 초과가 같이 있으면 겹침 사유가 먼저", () -> { W w = new W();
             w.stu("1", true, M1, M2, M3, M4, M5, ONE, FR1); SwapRequest a = w.raw("1", ONE, "일본어");
             Student s2 = w.stu("2", true, JP1); SwapRequest b = w.raw("2", JP1, "한학점");
-            w.registry.find("1").get().getTimetable().remove(w.c(M4)); // 목1-3 빼고
+            w.registry.find("1").get().getTimetable().remove(w.c(M4));
             Course thu = new Course("99999003", "목5교시", "001", CourseType.MAJOR, Arrays.asList(new TimeSlot(Day.THU, 5, 5)), "", "", 3);
             w.registry.find("1").get().getTimetable().restore(thu);
             has(w.resultFor(a, b).getReason(), "내 시간표 겹침"); ok(s2 != null, ""); });
@@ -657,7 +640,6 @@ public class ConflictTest {
             ok(w.resultFor(a, b).isPossible(), w.resultFor(a, b).getReason()); });
     }
 
-    // ------------------------------------------------------------ 8
     static void exchange() throws IOException {
         sec("8. 교환 확정 (ExchangeService)");
         t("정상 확정: 두 시간표가 맞바뀌고 두 요청이 매칭완료", () -> { W w = new W();
@@ -759,6 +741,81 @@ public class ConflictTest {
             W x = load(dir); eq(w.snapshot(), x.snapshot(), "복원 상태"); });
     }
 
+    static void dropAndSwap() throws IOException {
+        sec("8-2. 겹치는 내 과목을 빼고 교환 (GUI의 '빼고 교환할까요?')");
+        t("내 쪽 겹침뿐이면: 판정·사유는 그대로 제외, 대신 '빼면 가능' 정보가 붙는다", () -> { W w = new W();
+            w.stu("1", true, M1, FR1); SwapRequest a = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF2); SwapRequest b = w.raw("2", LF2, "프랑스어");
+            MatchResult r = w.resultFor(a, b); eq(MatchVerdict.EXCLUDED_MINE, r.getVerdict(), "판정"); eq("내 시간표 겹침: 전공A", r.getReason(), "사유");
+            ok(!r.isPossible() && r.isResolvable(), "빼면 가능"); eq(1, r.getDroppable().size(), "뺄 과목 수"); eq(M1, r.getDroppable().get(0).getCode(), "뺄 과목"); });
+        t("동의 없이는(기본 확정) 여전히 거절, 상태 불변", () -> { W w = new W();
+            w.stu("1", true, M1, FR1); SwapRequest a = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF2); SwapRequest b = w.raw("2", LF2, "프랑스어");
+            String s = w.snapshot(); ok(rejected(() -> w.exchange.confirm(a, b)) != null, "확정됨");
+            ok(rejected(() -> w.exchange.confirm(a, b, false)) != null, "확정됨"); eq(s, w.snapshot(), "상태"); });
+        t("동의하면: 겹치는 과목과 내놓는 과목이 빠지고 받을 과목이 들어온다, 상대는 평소대로", () -> { W w = new W();
+            Student me = w.stu("1", true, M1, M3, FR1); SwapRequest a = w.raw("1", FR1, "생명");
+            Student p = w.stu("2", true, LF2, M4); SwapRequest b = w.raw("2", LF2, "프랑스어");
+            w.exchange.confirm(a, b, true);
+            eq(Arrays.asList(M3, LF2), w.codes(me), "내 시간표"); eq(Arrays.asList(M4, FR1), w.codes(p), "상대 시간표");
+            eq(RequestStatus.MATCHED, a.getStatus(), "내 요청"); eq(RequestStatus.MATCHED, b.getStatus(), "상대 요청");
+            eq(Collections.emptyList(), violations(w, true), "위반"); });
+        t("겹치는 과목이 여러 개면 전부 뺀다", () -> { W w = new W();
+            Student me = w.stu("1", true, M2, ADJ, LF1, M1); SwapRequest a = w.raw("1", LF1, "넓은");
+            w.stu("2", true, WIDE); SwapRequest b = w.raw("2", WIDE, "생명");
+            MatchResult r = w.resultFor(a, b); ok(r.isResolvable(), "빼면 가능"); eq(2, r.getDroppable().size(), "뺄 과목 수");
+            w.exchange.confirm(a, b, true); eq(Arrays.asList(M1, WIDE), w.codes(me), "내 시간표"); eq(Collections.emptyList(), violations(w, true), "위반"); });
+        t("겹치는 과목이 내 다른 요청에서 내놓는 중이면 빼고 교환 불가", () -> { W w = new W();
+            w.stu("1", true, LF2, FR1); SwapRequest a = w.raw("1", FR1, "한학점"); w.raw("1", LF2, "일본어");
+            Timetable t2 = new Timetable(); Course mon = new Course("99999010", "한학점", "010", CourseType.GENERAL, Arrays.asList(new TimeSlot(Day.MON, 3, 3)), "", "", 1);
+            t2.restore(mon); w.registry.put(new Student("2", "학생2", t2, true));
+            SwapRequest b = new SwapRequest(90, "2", mon, "프랑스어", RequestStatus.WAITING); w.board.put(b);
+            MatchResult r = w.resultFor(a, b); ok(!r.isPossible() && !r.isResolvable(), "빼면 가능으로 나옴");
+            String s = w.snapshot(); ok(rejected(() -> w.exchange.confirm(a, b, true)) != null, "확정됨"); eq(s, w.snapshot(), "상태"); });
+        t("내 쪽을 빼도 상대 쪽이 겹치면 빼고 교환 불가", () -> { W w = new W();
+            w.stu("1", true, M1, FR1); SwapRequest a = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF2, WIDE); SwapRequest b = w.raw("2", LF2, "프랑스어");
+            ok(!w.resultFor(a, b).isResolvable(), "빼면 가능으로 나옴"); ok(rejected(() -> w.exchange.confirm(a, b, true)) != null, "확정됨"); });
+        t("상대 쪽 제외·학점 초과·중복 수강은 동의해도 확정 불가", () -> { W w = new W();
+            w.stu("1", true, FR1); SwapRequest a = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF4, WIDE); SwapRequest b = w.raw("2", LF4, "프랑스어");
+            w.stu("3", true, FR1, LF4); SwapRequest c = w.raw("3", FR1, "생명");
+            w.stu("4", true, LF1); SwapRequest d = w.raw("4", LF1, "프랑스어");
+            String s = w.snapshot();
+            ok(!w.resultFor(a, b).isResolvable() && rejected(() -> w.exchange.confirm(a, b, true)) != null, "상대 겹침인데 확정");
+            ok(!w.resultFor(c, d).isResolvable() && rejected(() -> w.exchange.confirm(c, d, true)) != null, "중복 수강인데 확정");
+            eq(s, w.snapshot(), "상태"); });
+        t("빼는 과목의 학점만큼 여유가 생긴다 (18학점에서 3학점 빼고 1학점 내놓고 3학점 받기)", () -> { W w = new W();
+            Student me = w.stu("1", true, M1, M2, M3, M4, M5, ONE, FR1); SwapRequest a = w.raw("1", ONE, "일본어");
+            Timetable t2 = new Timetable(); Course thu = new Course("20003009", "일본어", "009", CourseType.GENERAL, Arrays.asList(new TimeSlot(Day.THU, 3, 4)), "", "", 3);
+            t2.restore(thu); w.registry.put(new Student("2", "학생2", t2, true));
+            SwapRequest b = new SwapRequest(90, "2", thu, "한학점", RequestStatus.WAITING); w.board.put(b);
+            ok(w.resultFor(a, b).isResolvable(), "빼면 가능이 아님: " + w.resultFor(a, b).getReason());
+            w.exchange.confirm(a, b, true); eq(17, me.getTimetable().getTotalCredits(), "학점"); ok(!me.getTimetable().contains(M4), "전공D가 남음"); });
+        t("빼도 18학점을 넘으면 빼고 교환 불가", () -> { W w = new W();
+            w.stu("1", true, M1, M2, M3, M4, M5, ONE, ADJ);
+            SwapRequest a = w.raw("1", ONE, "넓은");
+            w.stu("2", true, WIDE); SwapRequest b = w.raw("2", WIDE, "한학점");
+            ok(w.resultFor(a, b).isResolvable(), "가능해야 함");
+            W x = new W(); x.stu("1", true, M1, M3, M4, M5, JP2, ADJ, FR2, ONE == null ? M1 : LF1);
+            SwapRequest c = x.raw("1", LF1, "넓은"); x.stu("2", true, WIDE); SwapRequest d = x.raw("2", WIDE, "생명");
+            ok(x.resultFor(c, d).isResolvable(), "18학점이 되는 경우는 가능해야 함");
+            W y = new W(); y.stu("1", true, M1, M3, M4, M5, JP2, BIG == null ? M1 : ADJ, LF1, CN, SAT);
+            SwapRequest e = y.raw("1", LF1, "넓은"); y.stu("2", true, WIDE); SwapRequest f = y.raw("2", WIDE, "생명");
+            ok(!y.resultFor(e, f).isResolvable(), "22학점인데 빼면 가능으로 나옴"); });
+        t("'가능'인 상대는 뺄 과목이 없고, 동의 여부와 상관없이 평소대로 확정", () -> { W w = new W();
+            Student me = w.stu("1", true, M1, FR1); SwapRequest a = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF1); SwapRequest b = w.raw("2", LF1, "프랑스어");
+            MatchResult r = w.resultFor(a, b); ok(r.isPossible() && !r.isResolvable() && r.getDroppable().isEmpty(), "뺄 과목이 있음");
+            w.exchange.confirm(a, b, true); eq(Arrays.asList(M1, LF1), w.codes(me), "내 시간표"); });
+        t("빼고 교환한 뒤 저장 -> 복원해도 같은 상태", () -> { W w = new W();
+            w.stu("1", true, M1, M3, FR1); SwapRequest a = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF2, M4); SwapRequest b = w.raw("2", LF2, "프랑스어");
+            w.exchange.confirm(a, b, true);
+            Path dir = writeCourses("drop-save"); FileStorage fs = new FileStorage(dir.toString());
+            fs.saveStudents(w.registry.all()); fs.saveRequests(w.board.all()); eq(w.snapshot(), load(dir).snapshot(), "복원 상태"); });
+    }
+
     static W load(Path dir) throws IOException {
         W x = new W(dir);
         FileStorage fs = new FileStorage(dir.toString());
@@ -767,7 +824,6 @@ public class ConflictTest {
         return x;
     }
 
-    // ------------------------------------------------------------ 9
     static void enrollment() throws IOException {
         sec("9. 정원·빈자리 (EnrollmentService)");
         t("수강인원 = 파일 값 + 이 프로그램 학생 수", () -> { W w = new W(); eq(1, w.enroll.enrolledOf(w.c(CO)), "처음");
@@ -793,7 +849,6 @@ public class ConflictTest {
             w.exchange.confirm(ra, rb); ok(a.getTimetable().contains(FULL) && b.getTimetable().contains(FR1), "교환"); eq(before, w.enroll.enrolledOf(w.c(FULL)), "인원"); });
     }
 
-    // ------------------------------------------------------------ 10
     static void storage() throws IOException {
         sec("10. 파일 복원 때의 충돌");
         t("쉼표·따옴표가 든 이름과 과목명 왕복", () -> { W w = new W();
@@ -847,9 +902,9 @@ public class ConflictTest {
             throw new AssertionError("그대로 읽힘"); });
     }
 
-    // ------------------------------------------------------------ 11
     static String runConsole(Path dir, String... lines) throws Exception {
-        ProcessBuilder pb = new ProcessBuilder("java", "-Dfile.encoding=UTF-8", "-cp", "out", "kookyohwan.Main", dir.toString());
+        ProcessBuilder pb = new ProcessBuilder("java", "-Dfile.encoding=UTF-8", "-cp",
+                System.getProperty("java.class.path"), "kookyohwan.Main", dir.toString());
         pb.redirectErrorStream(true);
         Process p = pb.start();
         p.getOutputStream().write((String.join("\n", lines) + "\n").getBytes(StandardCharsets.UTF_8));
@@ -859,7 +914,7 @@ public class ConflictTest {
         ok(!out.contains("Exception"), "콘솔에 예외 출력: " + out.substring(Math.max(0, out.indexOf("Exception") - 200), Math.min(out.length(), out.indexOf("Exception") + 300)));
         return out;
     }
-    /** 순서대로 나오는지 */
+
     static void seq(String out, String... parts) {
         int at = 0;
         for (String p : parts) {
@@ -875,7 +930,7 @@ public class ConflictTest {
         w.stu("201", true, LF1); w.raw("201", LF1, "프랑스어");
         w.stu("202", true, LF2); w.raw("202", LF2, "프랑스어");
         w.stu("204", true, LF4, WIDE); w.raw("204", LF4, "프랑스어");
-        w.stu("205", true, M1, M2, M3, M4, M5, JP1); // 18학점
+        w.stu("205", true, M1, M2, M3, M4, M5, JP1);
         w.stu("206", true, FR2, LF4);
         Path dir = writeCourses(name);
         FileStorage fs = new FileStorage(dir.toString());
@@ -927,8 +982,6 @@ public class ConflictTest {
             W x = load(dir); eq(Collections.emptyList(), violations(x, true), "위반"); });
     }
 
-    // ------------------------------------------------------------ 12
-    /** 화면이 하는 순서 그대로(정원 검사 -> 겹침 -> 학점 -> 교체) 무작위로 조작하고 매번 전체 상태를 검사한다. */
     static void fuzz() throws IOException {
         sec("12. 무작위 조작 2만 번 + 매번 전체 검사");
         t("어떤 순서로 조작해도 겹침·학점 초과·중복 수강·요청 어긋남이 생기지 않는다", () -> {
@@ -937,14 +990,14 @@ public class ConflictTest {
                 W w = new W();
                 List<Student> ss = new ArrayList<>();
                 for (int i = 0; i < 14; i++) ss.add(w.registry.register("5" + String.format("%02d", i), "무작위" + i));
-                int confirms = 0, possibles = 0;
+                int confirms = 0, possibles = 0, drops = 0;
                 for (int step = 0; step < 5000; step++) {
                     Student s = ss.get(rnd.nextInt(ss.size()));
                     Timetable tt = s.getTimetable();
                     Course c = w.courses.get(rnd.nextInt(w.courses.size()));
                     String what;
                     switch (rnd.nextInt(10)) {
-                        case 0: case 1: case 2: { // 추가(겹치면 교체)
+                        case 0: case 1: case 2: {
                             what = "추가 " + c.getCode();
                             if (tt.contains(c.getCode())) break;
                             try { w.enroll.validateEnroll(s, c); } catch (RequestRejectedException e) { break; }
@@ -956,7 +1009,7 @@ public class ConflictTest {
                             if (!blocked) tt.replace(conflicts, c);
                             break;
                         }
-                        case 3: { // 빼기
+                        case 3: {
                             what = "빼기";
                             if (tt.size() == 0) break;
                             Course x = tt.getCourses().get(rnd.nextInt(tt.size()));
@@ -964,20 +1017,20 @@ public class ConflictTest {
                             break;
                         }
                         case 4: what = "확정"; if (tt.size() > 0) w.registry.confirmTimetable(s.getId()); break;
-                        case 5: case 6: { // 요청 등록
+                        case 5: case 6: {
                             what = "요청";
                             if (tt.size() == 0) break;
                             Course give = tt.getCourses().get(rnd.nextInt(tt.size()));
                             try { w.board.register(s, give, c.getName()); } catch (RequestRejectedException e) { }
                             break;
                         }
-                        case 7: { // 취소
+                        case 7: {
                             what = "취소";
                             List<SwapRequest> mine = w.board.waitingOf(s.getId());
                             if (!mine.isEmpty() && rnd.nextInt(3) == 0) w.board.cancel(mine.get(rnd.nextInt(mine.size())).getId());
                             break;
                         }
-                        default: { // 매칭 + 확정
+                        default: {
                             what = "매칭";
                             List<SwapRequest> mine = w.board.waitingOf(s.getId());
                             if (mine.isEmpty()) break;
@@ -992,15 +1045,17 @@ public class ConflictTest {
                             }
                             if (!rs.isEmpty()) {
                                 MatchResult pick = rs.get(rnd.nextInt(rs.size()));
-                                try { w.exchange.confirm(m, pick.getRequest()); ok(pick.isPossible(), "제외인데 확정됨"); confirms++; what = "확정교환"; }
-                                catch (RequestRejectedException e) { ok(!pick.isPossible(), "가능인데 확정 거절: " + e.getReason()); eq(before, w.snapshot(), "거절인데 상태가 바뀜"); }
+                                boolean drop = rnd.nextBoolean();
+                                boolean expect = pick.isPossible() || (drop && pick.isResolvable());
+                                try { w.exchange.confirm(m, pick.getRequest(), drop); ok(expect, "제외인데 확정됨"); confirms++; if (!pick.isPossible()) drops++; what = "확정교환"; }
+                                catch (RequestRejectedException e) { ok(!expect, "확정돼야 하는데 거절: " + e.getReason()); eq(before, w.snapshot(), "거절인데 상태가 바뀜"); }
                             }
                         }
                     }
                     List<String> v = violations(w, true);
                     ok(v.isEmpty(), "seed " + seed + " step " + step + " (" + what + ") 뒤 위반: " + v);
                 }
-                System.out.println("       seed " + seed + ": 가능 판정 " + possibles + "회, 교환 확정 " + confirms + "회, 요청 " + w.board.size() + "건");
+                System.out.println("       seed " + seed + ": 가능 판정 " + possibles + "회, 교환 확정 " + confirms + "회(빼고 교환 " + drops + "회), 요청 " + w.board.size() + "건");
                 ok(confirms > 0, "교환이 한 번도 안 일어남 (테스트가 약함)");
                 Path dir = writeCourses("fz-" + seed); FileStorage fs = new FileStorage(dir.toString());
                 fs.saveStudents(w.registry.all()); fs.saveRequests(w.board.all());
@@ -1009,7 +1064,6 @@ public class ConflictTest {
         });
     }
 
-    // ------------------------------------------------------------ 13
     static void realData() throws IOException {
         sec("13. 실제 data/ (과목 3,242개, 학생 47명)");
         Path real = Paths.get("data");

@@ -25,11 +25,6 @@ import java.util.List;
 
 import static kookyohwan.gui.Session.ROW_GAP;
 
-/**
- * 과목 목록 탭(R1): 검색어와 구분으로 좁혀 보고 빈자리를 확인한다.
- * 시간표 편집 중에는 고른 과목을 그대로 시간표에 넣고, 확정한 뒤에는 빈자리가 있는 과목만 수강신청할 수 있다.
- * 마감된 과목은 여기서 넣을 수 없다 — 교환 요청으로 상대를 찾아야 한다.
- */
 class CoursePanel extends JPanel {
     private static final String ALL_TYPES = "전체";
     private static final int SEAT_COLUMN = 5;
@@ -49,7 +44,7 @@ class CoursePanel extends JPanel {
         }
     };
     private final JTable table = new JTable(model);
-    private final List<Course> shown = new ArrayList<>(); // 표의 줄 순서와 같은 과목 목록
+    private final List<Course> shown = new ArrayList<>();
 
     CoursePanel(Session session) {
         this.session = session;
@@ -61,7 +56,7 @@ class CoursePanel extends JPanel {
             typeFilter.addItem(type.getLabel());
         }
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, ROW_GAP));
-        top.add(new JLabel("검색"));
+        top.add(new JLabel("검색 (교과목명, 교수명, 학수번호)"));
         top.add(keyword);
         top.add(new JLabel("구분"));
         top.add(typeFilter);
@@ -76,7 +71,7 @@ class CoursePanel extends JPanel {
         for (int i = 0; i < widths.length; i++) {
             table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
-        table.getColumnModel().getColumn(SEAT_COLUMN).setCellRenderer(Theme.pill(null)); // 마감은 빨강, 빈자리는 초록
+        table.getColumnModel().getColumn(SEAT_COLUMN).setCellRenderer(Theme.pill(null));
         add(Theme.scroll(table), BorderLayout.CENTER);
 
         JPanel bottom = new JPanel(new BorderLayout(8, 0));
@@ -115,14 +110,14 @@ class CoursePanel extends JPanel {
                 }
             }
         });
-        session.addListener(this::refresh); // 시간표가 바뀌면 빈자리 수와 버튼 상태도 바뀐다
+        session.addListener(this::refresh);
         refresh();
     }
 
     private void refresh() {
         String text = keyword.getText().trim();
         String type = (String) typeFilter.getSelectedItem();
-        int seat = seatFilter.getSelectedIndex(); // 0 전체, 1 빈자리 있음, 2 마감
+        int seat = seatFilter.getSelectedIndex();
         EnrollmentService enrollment = session.getEnrollment();
         List<Course> found = text.isEmpty() ? session.getCatalog().all() : session.getCatalog().search(text);
         shown.clear();
@@ -143,7 +138,6 @@ class CoursePanel extends JPanel {
         updateButton();
     }
 
-    /** 편집 중: 고르면 넣을 수 있다. 확정 후: 빈자리가 있는 과목만 수강신청 버튼이 켜진다. */
     private void updateButton() {
         boolean confirmed = session.getMe().isTimetableConfirmed();
         int row = table.getSelectedRow();

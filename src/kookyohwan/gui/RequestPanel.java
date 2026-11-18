@@ -21,7 +21,6 @@ import java.awt.Font;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 교환 요청 탭(R3): 전체 요청 목록 + 내 요청 등록. 등록 조건 검사는 RequestBoard가 한다. */
 class RequestPanel extends JPanel {
     private final Session session;
     private final JLabel title = new JLabel();
@@ -35,9 +34,8 @@ class RequestPanel extends JPanel {
     private final JTable table = new JTable(model);
     private final List<Boolean> mineRows = new ArrayList<>();
     private final JComboBox<String> giveBox = Theme.combo();
-    private final List<Course> giveCourses = new ArrayList<>(); // giveBox의 항목 순서와 같은 과목
+    private final List<Course> giveCourses = new ArrayList<>();
     private final JTextField wantField = Theme.field(24);
-
 
     RequestPanel(Session session) {
         this.session = session;
@@ -45,14 +43,14 @@ class RequestPanel extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
         title.setFont(title.getFont().deriveFont(Font.BOLD, 16f));
-        // 취소 버튼은 표에서 고른 요청에 대한 동작이라 표 제목 줄에 둔다
+
         JButton cancelButton = Theme.secondary("선택한 내 요청 취소");
         JPanel head = new JPanel(new BorderLayout());
         head.add(title, BorderLayout.WEST);
         head.add(cancelButton, BorderLayout.EAST);
         add(head, BorderLayout.NORTH);
 
-        Theme.table(table, row -> row < mineRows.size() && mineRows.get(row)); // 내 요청 줄은 옅은 파랑
+        Theme.table(table, row -> row < mineRows.size() && mineRows.get(row));
         int[] widths = {60, 90, 300, 260, 90, 80};
         for (int i = 0; i < widths.length; i++) {
             table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
@@ -92,7 +90,6 @@ class RequestPanel extends JPanel {
         table.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
         add(form, BorderLayout.SOUTH);
 
-        // Enter로는 등록하지 않는다: 한글 입력에서 Enter는 조합 중인 글자를 확정하는 키라서 의도치 않게 등록 창이 뜬다
         registerButton.addActionListener(e -> UiEvents.afterInput(this::register));
         session.addListener(this::refresh);
         refresh();
@@ -122,7 +119,7 @@ class RequestPanel extends JPanel {
             giveBox.addItem(Session.label(c) + "  [" + c.getType().getLabel()
                     + (c.isGeneral() ? "" : " - 교환 불가") + "]");
         }
-        for (int i = 0; i < giveCourses.size(); i++) { // 처음 보이는 항목은 교환 가능한 교양으로
+        for (int i = 0; i < giveCourses.size(); i++) {
             if (giveCourses.get(i).isGeneral()) {
                 giveBox.setSelectedIndex(i);
                 break;
@@ -142,7 +139,7 @@ class RequestPanel extends JPanel {
             JOptionPane.showMessageDialog(this, "희망 과목명을 입력하세요.", "안내", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        // 학수번호를 넣으면 과목명으로 바꿔 등록(5.3). 둘 다 아니면 입력 그대로 넘겨 거절받는다
+
         String wantName = session.getCatalog().resolveName(input).orElse(input);
         try {
             session.getBoard().validate(session.getMe(), give, wantName);
@@ -150,7 +147,7 @@ class RequestPanel extends JPanel {
             TimetableActions.reject(this, session, TimetableActions.brief(e.getReason()));
             return;
         }
-        int open = 0; // 빈자리가 있는 분반이 있으면 교환 없이 바로 수강신청할 수 있다고 알려 준다
+        int open = 0;
         for (Course c : session.getCatalog().findByName(wantName)) {
             if (!session.getEnrollment().isFull(c)) {
                 open++;
@@ -175,7 +172,6 @@ class RequestPanel extends JPanel {
         }
     }
 
-    /** R7 요청 취소: 표에서 고른 내 대기 요청을 취소한다. 상태 변경은 RequestBoard.cancel. */
     private void cancelSelected() {
         int row = table.getSelectedRow();
         List<SwapRequest> requests = session.getBoard().all();

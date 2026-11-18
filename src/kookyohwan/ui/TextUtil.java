@@ -1,18 +1,30 @@
 package kookyohwan.ui;
 
-/** 한글은 터미널에서 2칸을 차지하므로 String.format의 %-10s 대신 표시 폭 기준으로 맞춘다. */
 public final class TextUtil {
     private TextUtil() {
     }
 
     public static int displayWidth(String s) {
         int w = 0;
-        for (char c : s.toCharArray()) {
-            boolean wide = (c >= '가' && c <= '힣')   // 한글 음절
-                    || (c >= '一' && c <= '鿿');      // 한자
-            w += wide ? 2 : 1;
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            w += widthOf(cp);
+            i += Character.charCount(cp);
         }
         return w;
+    }
+
+    private static int widthOf(int cp) {
+        boolean wide = (cp >= 0x1100 && cp <= 0x115F)
+                || (cp >= 0x2E80 && cp <= 0xA4CF)
+                || (cp >= 0xAC00 && cp <= 0xD7A3)
+                || (cp >= 0xF900 && cp <= 0xFAFF)
+                || (cp >= 0xFE30 && cp <= 0xFE4F)
+                || (cp >= 0xFF00 && cp <= 0xFF60)
+                || (cp >= 0xFFE0 && cp <= 0xFFE6)
+                || (cp >= 0x1F300 && cp <= 0x1FAFF)
+                || (cp >= 0x20000 && cp <= 0x3FFFD);
+        return wide ? 2 : 1;
     }
 
     public static String padRight(String s, int width) {
@@ -23,25 +35,25 @@ public final class TextUtil {
         return sb.toString();
     }
 
-    /** 폭을 넘치면 (width-2)칸에서 자르고 ".." (격자 칸용) */
     public static String cut(String s, int width) {
         if (displayWidth(s) <= width) {
             return s;
         }
         StringBuilder sb = new StringBuilder();
         int w = 0;
-        for (char c : s.toCharArray()) {
-            int cw = displayWidth(String.valueOf(c));
+        for (int i = 0; i < s.length(); ) {
+            int cp = s.codePointAt(i);
+            int cw = widthOf(cp);
             if (w + cw > width - 2) {
                 break;
             }
-            sb.append(c);
+            sb.appendCodePoint(cp);
             w += cw;
+            i += Character.charCount(cp);
         }
         return sb.append("..").toString();
     }
 
-    /** 가운데 정렬 (격자 머리글의 요일) */
     public static String center(String s, int width) {
         int total = Math.max(0, width - displayWidth(s));
         int left = total / 2;

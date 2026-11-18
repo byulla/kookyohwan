@@ -16,7 +16,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/** 창의 내용 전체: 위에 앱 이름·메뉴 탭·현재 사용자, 가운데 고른 탭의 카드, 아래 상태 줄. */
 public class MainPanel extends JPanel {
     private static final String[] TABS = {"내 시간표", "과목 목록", "교환 요청", "매칭"};
 
@@ -32,7 +31,6 @@ public class MainPanel extends JPanel {
         setLayout(new BorderLayout());
         setBackground(Theme.BACKGROUND);
 
-        // 위쪽 줄: 앱 이름 + 메뉴 탭 (왼쪽), 현재 사용자 + 전환·저장 (오른쪽)
         JLabel appName = new JLabel("구교환");
         appName.setFont(appName.getFont().deriveFont(Font.BOLD, 21f));
         appName.setForeground(Theme.ACCENT);
@@ -67,7 +65,6 @@ public class MainPanel extends JPanel {
         header.add(right, BorderLayout.EAST);
         add(header, BorderLayout.NORTH);
 
-        // 가운데: 탭마다 흰 카드 하나
         content.setOpaque(false);
         content.setBorder(BorderFactory.createEmptyBorder(16, 18, 6, 18));
         JComponent[] panels = {new TimetablePanel(session), new CoursePanel(session),
@@ -90,7 +87,6 @@ public class MainPanel extends JPanel {
         showTab(0);
     }
 
-    /** index번째 탭을 보여 준다 (0 내 시간표, 1 과목 목록, 2 교환 요청, 3 매칭). */
     public void showTab(int index) {
         cards.show(content, TABS[index]);
         for (int i = 0; i < navButtons.size(); i++) {
@@ -104,7 +100,6 @@ public class MainPanel extends JPanel {
                 + Timetable.MAX_CREDITS + "학점" + (me.isTimetableConfirmed() ? "" : "  ·  편집 중"));
     }
 
-    /** 저장 먼저 -> 학번 다시 입력 (콘솔 메뉴 9와 같은 순서). */
     private void switchUser() {
         session.save();
         Optional<Student> next = LoginGate.ask(this, session.getRegistry());

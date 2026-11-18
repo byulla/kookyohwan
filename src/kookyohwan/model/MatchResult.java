@@ -1,17 +1,32 @@
 package kookyohwan.model;
 
-/** 매칭 결과 한 줄: 후보 요청, 내가 받을 과목(상대 분반), 판정, 사유. */
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 public class MatchResult {
     private final SwapRequest request;
     private final Course receiveCourse;
     private final MatchVerdict verdict;
     private final String reason;
+    private final List<Course> droppable;
 
     private MatchResult(SwapRequest request, Course receiveCourse, MatchVerdict verdict, String reason) {
+        this(request, receiveCourse, verdict, reason, Collections.emptyList());
+    }
+
+    private MatchResult(SwapRequest request, Course receiveCourse, MatchVerdict verdict, String reason,
+                        List<Course> droppable) {
         this.request = request;
         this.receiveCourse = receiveCourse;
         this.verdict = verdict;
         this.reason = reason;
+        this.droppable = Collections.unmodifiableList(new ArrayList<>(droppable));
+    }
+
+    public static MatchResult resolvable(SwapRequest request, Course receiveCourse, String reason,
+                                         List<Course> droppable) {
+        return new MatchResult(request, receiveCourse, MatchVerdict.EXCLUDED_MINE, reason, droppable);
     }
 
     public static MatchResult possible(SwapRequest request, Course receiveCourse) {
@@ -44,6 +59,14 @@ public class MatchResult {
 
     public String getReason() {
         return reason;
+    }
+
+    public boolean isResolvable() {
+        return !droppable.isEmpty();
+    }
+
+    public List<Course> getDroppable() {
+        return droppable;
     }
 
     public boolean isPossible() {

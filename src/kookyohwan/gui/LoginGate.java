@@ -13,12 +13,10 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.util.Optional;
 
-/** 학번 로그인. 시작할 때와 사용자 전환이 같은 메소드를 쓴다 (콘솔의 Main.login과 같은 규칙). */
 public final class LoginGate {
     private LoginGate() {
     }
 
-    /** 취소하면 empty. 처음 보는 학번이면 이름을 받아 빈 시간표로 등록한다. */
     public static Optional<Student> ask(Component parent, StudentRegistry registry) {
         while (true) {
             String id = prompt(parent, "구교환 - 학번 입력", "학번을 입력하세요.");
@@ -36,7 +34,7 @@ public final class LoginGate {
             }
             String name = prompt(parent, "새 학생 등록", "처음 보는 학번입니다. 이름을 입력하세요.");
             if (name == null || name.trim().isEmpty()) {
-                continue; // 등록하지 않고 학번을 다시 묻는다
+                continue;
             }
             if (name.contains(",")) {
                 JOptionPane.showMessageDialog(parent, "이름에는 쉼표(,)를 쓸 수 없습니다.", "오류",
@@ -47,13 +45,12 @@ public final class LoginGate {
         }
     }
 
-    /** 둥근 입력 칸 하나짜리 입력 창. 취소하면 null. (기본 입력 창의 칸은 작고 각져서 따로 만든다) */
     private static String prompt(Component parent, String title, String message) {
         JTextField field = Theme.field(16);
         JPanel box = new JPanel(new BorderLayout(0, 10));
         box.add(new JLabel(message), BorderLayout.NORTH);
         box.add(field, BorderLayout.CENTER);
-        field.addAncestorListener(new AncestorListener() { // 창이 뜨면 바로 입력할 수 있게
+        field.addAncestorListener(new AncestorListener() {
             @Override
             public void ancestorAdded(AncestorEvent event) {
                 field.requestFocusInWindow();

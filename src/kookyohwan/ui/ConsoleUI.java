@@ -21,22 +21,17 @@ import java.util.Scanner;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/**
- * 메뉴 루프와 화면 출력(계획서 12·13절). 입력을 받아 서비스에 넘기고 결과·거절 사유를 보여 줄 뿐,
- * 조건 검사는 RequestBoard, 겹침 판정은 Timetable, 매칭은 MatchService가 한다.
- * 저장과 로그인은 Main이 넘겨준 동작(saver, login)을 부르기만 해서 Storage를 모른다.
- */
 public class ConsoleUI {
-    private static final int MAX_SEARCH_ROWS = 30; // 메뉴 1 검색 결과를 한 화면에 보이는 만큼만
+    private static final int MAX_SEARCH_ROWS = 30;
 
     private final Scanner in;
     private final CourseCatalog catalog;
     private final StudentRegistry registry;
     private final RequestBoard board;
     private final MatchService matcher;
-    private final EnrollmentService enrollment; // 정원·빈자리
-    private final Supplier<Optional<Student>> login; // Main.login — 시작 때와 메뉴 9가 같은 메소드
-    private final Consumer<Student> saver;           // Main.save — 파일 쓰기는 FileStorage만
+    private final EnrollmentService enrollment;
+    private final Supplier<Optional<Student>> login;
+    private final Consumer<Student> saver;
     private Student me;
 
     public ConsoleUI(Scanner in, Student me, CourseCatalog catalog, StudentRegistry registry,
@@ -53,7 +48,6 @@ public class ConsoleUI {
         this.saver = saver;
     }
 
-    /** 종료 시 Main이 "내 시간표 n과목"을 찍을 수 있게 (메뉴 9로 바뀌었을 수 있다). */
     public Student getCurrentStudent() {
         return me;
     }
@@ -62,11 +56,11 @@ public class ConsoleUI {
         while (true) {
             printMenu();
             System.out.print("선택 > ");
-            if (!in.hasNextLine()) { // 입력이 끊기면(Ctrl+D) 메뉴 0과 같이 저장하고 종료
+            if (!in.hasNextLine()) {
                 System.out.println();
                 return;
             }
-            String line = in.nextLine().trim(); // nextInt()와 섞지 않는다 (개행 문제)
+            String line = in.nextLine().trim();
             int choice;
             try {
                 choice = Integer.parseInt(line);
@@ -74,17 +68,21 @@ public class ConsoleUI {
                 System.out.println("[오류] 숫자를 입력하세요.");
                 continue;
             }
-            switch (choice) {
-                case 1 -> showCourses();
-                case 2 -> showTimetable();
-                case 3 -> registerRequest();
-                case 4 -> showRequests();
-                case 5 -> runMatch();
-                case 9 -> switchUser();
-                case 0 -> {
-                    return; // Main이 이어서 저장
+            try {
+                switch (choice) {
+                    case 1 -> showCourses();
+                    case 2 -> showTimetable();
+                    case 3 -> registerRequest();
+                    case 4 -> showRequests();
+                    case 5 -> runMatch();
+                    case 9 -> switchUser();
+                    case 0 -> {
+                        return;
+                    }
+                    default -> System.out.println("[오류] 메뉴에 있는 번호(0~5, 9)를 입력하세요.");
                 }
-                default -> System.out.println("[오류] 메뉴에 있는 번호(0~5, 9)를 입력하세요.");
+            } catch (RuntimeException e) {
+                System.out.println("[오류] 처리하지 못한 문제가 생겨 메뉴로 돌아갑니다. (" + e.getClass().getSimpleName() + ")");
             }
         }
     }
@@ -102,9 +100,6 @@ public class ConsoleUI {
         System.out.println("------------------------------------------------");
     }
 
-    // ---------------------------------------------------------------- 메뉴 1
-
-    /** 과목이 수천 개라 전체를 찍지 않고 검색어로 좁혀 보여 준다. 빈 줄이면 메뉴로. */
     private void showCourses() {
         List<Course> courses = catalog.all();
         EnumMap<CourseType, Integer> counts = new EnumMap<>(CourseType.class);
@@ -121,7 +116,7 @@ public class ConsoleUI {
         System.out.println();
         System.out.println("[과목 목록] 총 " + courses.size() + "개 (" + String.join(", ", parts) + ")");
         while (true) {
-            String keyword = ask("검색어 (교과목명 일부 또는 학수번호 앞자리, 돌아가려면 Enter) > ");
+            String keyword = ask("검색어 (교과목명, 교수명, 학수번호 앞자리 / 돌아가려면 Enter) > ");
             if (keyword.isEmpty()) {
                 return;
             }
@@ -146,25 +141,31 @@ public class ConsoleUI {
         }
     }
 
-    // ---------------------------------------------------------------- 메뉴 2
-
     private void showTimetable() {
         printTimetable();
         Timetable table = me.getTimetable();
         while (true) {
-            // 편집 중: 지금 듣는 과목을 옮겨 적는 단계(정원을 보지 않음). 확정 후: 빈자리가 있는 과목만 수강신청
             String code = ask(me.isTimetableConfirmed()
                     ? "수강신청할 학수번호 (빈자리 있는 과목만 / 빼기: -학수번호 / 돌아가려면 Enter) > "
                     : "넣을 학수번호 (빼기: -학수번호 / 시간표 확정: 저장 / 돌아가려면 Enter) > ");
             if (code.isEmpty()) {
                 return;
             }
-            if (code.equals("저장") && !me.isTimetableConfirmed()) {
-                confirmTimetable();
+            if (code.equals("저장")) {
+                if (me.isTimetableConfirmed()) {
+                    System.out.println("[안내] 이미 확정한 시간표입니다. 확정은 한 번만 할 수 있습니다.");
+                } else {
+                    confirmTimetable();
+                }
                 continue;
             }
             if (code.startsWith("-")) {
-                removeCourse(code.substring(1).trim());
+                String target = code.substring(1).trim();
+                if (target.isEmpty()) {
+                    System.out.println("[오류] 뺄 과목의 학수번호를 '-' 뒤에 붙여 입력하세요.");
+                } else {
+                    removeCourse(target);
+                }
                 continue;
             }
             Optional<Course> found = catalog.findByCode(code);
@@ -178,7 +179,7 @@ public class ConsoleUI {
                 continue;
             }
             List<Course> conflicts = table.findConflicts(course, null);
-            // 같은 과목의 다른 분반을 이미 듣는 경우. 시간이 겹치는 분반이면 아래 교체 흐름으로 분반을 바꿀 수 있다
+
             Optional<Course> same = table.findSameSubject(course, conflicts);
             if (same.isPresent()) {
                 reject(course.getName() + " " + course.getSection(), "같은 과목의 " + same.get().getSection()
@@ -186,12 +187,12 @@ public class ConsoleUI {
                 continue;
             }
             try {
-                enrollment.validateEnroll(me, course); // 확정한 뒤에는 마감된 과목을 넣을 수 없다 -> 교환 요청으로
+                enrollment.validateEnroll(me, course);
             } catch (RequestRejectedException e) {
                 reject(e.getTarget(), e.getReason(), "시간표를");
                 continue;
             }
-            if (table.exceedsLimit(course, conflicts)) { // 겹치는 과목을 빼고 넣어도 넘는 경우까지 여기서 거절
+            if (table.exceedsLimit(course, conflicts)) {
                 reject(course.getName() + " " + course.getSection(), "최대 " + Timetable.MAX_CREDITS
                         + "학점을 넘습니다 (현재 " + table.getTotalCredits() + "학점, 넣으면 "
                         + table.creditsAfter(course, conflicts) + "학점)", "시간표를");
@@ -205,7 +206,6 @@ public class ConsoleUI {
                 continue;
             }
 
-            // 겹침: 겹치는 과목을 전부 보여 주고 교체 여부를 묻는다 (정정기간의 실제 동작이 '빼고 넣기')
             System.out.println("[확인] " + course.getCode() + " " + label(course) + ": 다음 과목과 시간이 겹칩니다.");
             List<String> removedNames = new ArrayList<>();
             Optional<SwapRequest> blocking = Optional.empty();
@@ -218,7 +218,7 @@ public class ConsoleUI {
                     blocked = c;
                 }
             }
-            if (blocking.isPresent()) { // 요청은 남았는데 과목만 사라지는 상태를 막는다(AC5-2)
+            if (blocking.isPresent()) {
                 int id = blocking.get().getId();
                 reject(blocked.getName(), "요청 #" + id + josa(id, "이", "가")
                         + " 이 과목을 내놓는 중입니다. 먼저 요청을 취소하세요", "시간표를");
@@ -235,7 +235,6 @@ public class ConsoleUI {
         }
     }
 
-    /** 시간표 확정(저장). 이후에는 마감된 과목을 바로 넣을 수 없고 교환 요청을 올릴 수 있다. 되돌릴 수 없어 (y/n) 확인. */
     private void confirmTimetable() {
         if (me.getTimetable().size() == 0) {
             System.out.println("[안내] 시간표가 비어 있습니다. 듣고 있는 과목을 먼저 넣으세요.");
@@ -252,7 +251,6 @@ public class ConsoleUI {
                 + me.getTimetable().getTotalCredits() + "학점");
     }
 
-    /** 수강 취소(과목 빼기). 내 대기 요청이 내놓는 과목은 뺄 수 없다. */
     private void removeCourse(String code) {
         Optional<Course> found = me.getTimetable().findByCode(code);
         if (found.isEmpty()) {
@@ -273,7 +271,8 @@ public class ConsoleUI {
         }
         me.getTimetable().remove(course);
         System.out.println("[등록] " + course.getName() + " " + course.getSection() + " 삭제. "
-                + me.getTimetable().size() + "과목 " + me.getTimetable().getTotalCredits() + "학점");
+                + me.getTimetable().size() + "과목 " + me.getTimetable().getTotalCredits() + "학점"
+                + enrollment.seatNote(course));
         printTimetable();
     }
 
@@ -284,8 +283,6 @@ public class ConsoleUI {
                 + Timetable.MAX_CREDITS + ")" + (me.isTimetableConfirmed() ? "" : "  [편집 중 - 확정 전]"));
         TimetableGrid.print(me.getTimetable());
     }
-
-    // ---------------------------------------------------------------- 메뉴 3
 
     private void registerRequest() {
         List<Course> mine = me.getTimetable().getCourses();
@@ -315,7 +312,7 @@ public class ConsoleUI {
             if (input.isEmpty()) {
                 return;
             }
-            // 코드를 넣으면 과목명으로 바꿔 등록하고 변환 사실을 보여 준다(5.3). 둘 다 아니면 입력 그대로 넘겨 거절받는다
+
             String wantName = catalog.resolveName(input).orElse(input);
             if (!wantName.equals(input)) {
                 System.out.println("[확인] " + input + " -> " + wantName);
@@ -343,7 +340,6 @@ public class ConsoleUI {
         }
     }
 
-    /** 내놓을 과목 번호를 받는다. 거절(전공)이면 같은 입력을 다시 받고, 빈 줄이면 null(메뉴로). */
     private Course askGiveCourse(List<Course> mine) {
         while (true) {
             String line = ask("내놓을 과목 번호 > ");
@@ -371,7 +367,6 @@ public class ConsoleUI {
         }
     }
 
-    /** "분반 01, 02, 03 중 시간이 맞는 것" / "분반 01" */
     private String sectionHint(String wantName) {
         List<String> sections = new ArrayList<>();
         for (Course c : catalog.findByName(wantName)) {
@@ -380,8 +375,6 @@ public class ConsoleUI {
         String joined = "분반 " + String.join(", ", sections);
         return sections.size() > 1 ? joined + " 중 시간이 맞는 것" : joined;
     }
-
-    // ---------------------------------------------------------------- 메뉴 4
 
     private void showRequests() {
         List<SwapRequest> requests = board.all();
@@ -406,8 +399,6 @@ public class ConsoleUI {
                     + (isMine ? col(r.getStatus().getLabel(), 6) + "<- 내 요청" : r.getStatus().getLabel()));
         }
     }
-
-    // ---------------------------------------------------------------- 메뉴 5
 
     private void runMatch() {
         List<SwapRequest> waiting = board.waitingOf(me.getId());
@@ -471,7 +462,6 @@ public class ConsoleUI {
         System.out.println("(매칭 실행은 요청 상태를 바꾸지 않습니다)");
     }
 
-    /** 내 대기 요청이 2건 이상일 때 번호로 고른다. 빈 줄이면 null(메뉴로). */
     private SwapRequest askMyRequest(List<SwapRequest> waiting) {
         System.out.println();
         System.out.println("내 대기 요청이 " + waiting.size() + "건입니다.");
@@ -499,7 +489,6 @@ public class ConsoleUI {
         }
     }
 
-    /** 내놓는 과목을 뺀 내 시간표의 시간들: "월 3-4, 수 1-2, 금 3-4" */
     private String remainingTimes(Course give) {
         List<String> times = new ArrayList<>();
         for (Course c : me.getTimetable().getCourses()) {
@@ -510,9 +499,6 @@ public class ConsoleUI {
         return times.isEmpty() ? "없음" : String.join(", ", times);
     }
 
-    // ---------------------------------------------------------------- 메뉴 9
-
-    /** 저장 먼저 -> login() 다시 호출. 전환 중 꺼져도 등록한 요청이 남는다. */
     private void switchUser() {
         System.out.println();
         saver.accept(me);
@@ -524,9 +510,6 @@ public class ConsoleUI {
         me = next.get();
     }
 
-    // ---------------------------------------------------------------- 공통
-
-    /** 프롬프트를 찍고 한 줄 입력. 입력이 끊기면 빈 줄로 취급해 메뉴로 돌아가게 한다. */
     private String ask(String prompt) {
         System.out.print(prompt);
         if (!in.hasNextLine()) {
@@ -536,42 +519,36 @@ public class ConsoleUI {
         return in.nextLine().trim();
     }
 
-    /** (y/n) 확인. y만 true, n이나 빈 줄은 false. 그 밖의 입력은 다시 묻는다. */
     private boolean confirm(String prompt) {
         while (true) {
             String answer = ask(prompt);
-            if (answer.equalsIgnoreCase("y")) {
+            if (answer.equalsIgnoreCase("y") || answer.equals("ㅛ")) {
                 return true;
             }
-            if (answer.isEmpty() || answer.equalsIgnoreCase("n")) {
+            if (answer.isEmpty() || answer.equalsIgnoreCase("n") || answer.equals("ㅜ")) {
                 return false;
             }
             System.out.println("[오류] y 또는 n을 입력하세요.");
         }
     }
 
-    /** 거절 형식 통일(5.3): [거절] 대상: 사유. …을 변경하지 않았습니다. (80칸을 넘지 않게 두 줄) */
-    private void reject(String target, String reason, String unchanged) { // unchanged: "시간표를", "요청 목록을"
+    private void reject(String target, String reason, String unchanged) {
         System.out.println("[거절] " + target + ": " + reason + ".");
         System.out.println("       " + unchanged + " 변경하지 않았습니다.");
     }
 
-    /** 표의 한 칸. 내용이 폭을 넘쳐도 다음 칸과 붙지 않게 공백 하나는 남긴다. */
     private static String col(String s, int width) {
         return TextUtil.padRight(s, width - 1) + " ";
     }
 
-    /** 요청 번호 뒤 조사: #6은 / #5는. 숫자를 한글로 읽었을 때 받침이 있으면(0·1·3·6·7·8) 앞의 것. */
     private static String josa(int number, String withBatchim, String without) {
         return "013678".indexOf('0' + number % 10) >= 0 ? withBatchim : without;
     }
 
-    /** "생명과 나눔 02 (월 3-4)" */
     private static String label(Course c) {
         return c.getName() + " " + c.getSection() + " (" + c.timesToString() + ")";
     }
 
-    /** 학번 -> 이름. students.csv에 없는 학번이면 학번 그대로. */
     private String nameOf(String studentId) {
         return registry.find(studentId).map(Student::getName).orElse(studentId);
     }

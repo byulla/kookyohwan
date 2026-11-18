@@ -22,15 +22,11 @@ import javax.swing.UIManager;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * GUI 진입점(Swing, 표준 API만). 콘솔 진입점 Main과 같은 순서: 복원 -> 학번 입력 -> 화면 -> 저장.
- * model·service·storage는 콘솔과 똑같이 쓰고 화면(ui 대신 gui)만 바꿨다.
- * 실행: java -cp out kookyohwan.GuiMain [데이터폴더]
- */
 public class GuiMain {
     private static final String DEFAULT_DATA_DIR = "data";
 
@@ -43,15 +39,19 @@ public class GuiMain {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
-            // 시스템 모양을 못 쓰면 기본 모양 그대로
         }
         Theme.install();
-        Storage storage = new FileStorage(dataDir);
+        Storage storage;
+        try {
+            storage = new FileStorage(dataDir);
+        } catch (InvalidPathException e) {
+            JOptionPane.showMessageDialog(null, "데이터 폴더 경로를 쓸 수 없습니다.", "구교환", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         CourseCatalog catalog = new CourseCatalog();
         StudentRegistry registry = new StudentRegistry();
         RequestBoard board = new RequestBoard(catalog);
 
-        // 복원 순서: courses -> students -> requests. 실패하면 계속하지 않는다(저장 때 파일을 덮어쓰지 않게)
         try {
             List<Course> courses = storage.loadCourses();
             for (Course c : courses) {
@@ -73,7 +73,7 @@ public class GuiMain {
 
         Optional<Student> me = LoginGate.ask(null, registry);
         if (me.isEmpty()) {
-            return; // 학번을 입력하지 않으면 종료
+            return;
         }
         Session session = new Session(me.get(), catalog, registry, board, new MatchService(board, registry),
                 current -> save(storage, registry, board));
@@ -83,7 +83,7 @@ public class GuiMain {
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         frame.addWindowListener(new WindowAdapter() {
             @Override
-            public void windowClosing(WindowEvent e) { // 창을 닫으면 저장하고 종료 (콘솔 메뉴 0)
+            public void windowClosing(WindowEvent e) {
                 String result = save(storage, registry, board);
                 if (result.startsWith("[오류]")) {
                     int answer = JOptionPane.showConfirmDialog(frame, "저장하지 못했습니다. 그대로 종료할까요?",
@@ -97,14 +97,13 @@ public class GuiMain {
             }
         });
         frame.setSize(1180, 880);
-        frame.setMinimumSize(new Dimension(960, 640)); // 이보다 줄이면 버튼 줄이 잘린다
+        frame.setMinimumSize(new Dimension(960, 640));
         frame.setLocationRelativeTo(null);
         frame.setVisible(true);
         session.say("[복원] 과목 " + catalog.size() + "개, 학생 " + registry.size() + "명, 교환 요청 "
                 + board.size() + "건   |   " + me.get().getName() + " 님의 시간표를 불러왔습니다.");
     }
 
-    /** 두 파일을 통째로 다시 쓴다. 결과를 상태 줄에 보여 줄 메시지로 돌려준다. */
     private static String save(Storage storage, StudentRegistry registry, RequestBoard board) {
         try {
             storage.saveStudents(registry.all());

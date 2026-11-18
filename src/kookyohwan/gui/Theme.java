@@ -34,34 +34,31 @@ import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.util.function.IntPredicate;
 
-/**
- * 화면 모양을 한 곳에서 정한다: 색, 글꼴, 둥근 버튼, 흰 카드, 표 모양, 상태 알약(pill).
- * 입력 칸과 선택 상자는 운영체제 모양을 그대로 쓰고, 버튼·탭·표처럼 눈에 많이 띄는 것만 직접 그린다.
- */
 public final class Theme {
     static final Color BACKGROUND = new Color(0xF4F5F7);
     static final Color CARD = Color.WHITE;
     static final Color LINE = new Color(0xE5E7EB);
     static final Color TEXT = new Color(0x1F2328);
     static final Color MUTED = new Color(0x6B7280);
-    static final Color ACCENT = new Color(0xE9453A);      // 시간표 앱의 빨강
+    static final Color ACCENT = new Color(0xE9453A);
     static final Color ACCENT_DARK = new Color(0xCB362C);
     static final Color ACCENT_SOFT = new Color(0xFDECEA);
     static final Color GREEN = new Color(0x18794E);
     static final Color GREEN_SOFT = new Color(0xE3F6EA);
     static final Color BLUE = new Color(0x1D5FD1);
     static final Color BLUE_SOFT = new Color(0xE8F0FE);
+    static final Color AMBER = new Color(0x9A6700);
+    static final Color AMBER_SOFT = new Color(0xFFF4D6);
     static final Color GRAY_SOFT = new Color(0xEEF0F3);
     static final Color ROW_MINE = new Color(0xF5F9FF);
     static final Color HEADER = new Color(0xF8F9FB);
     static final Color INPUT_BORDER = new Color(0xD1D5DB);
-    static final int INPUT_HEIGHT = 40; // 입력 칸·선택 상자·버튼의 높이를 맞춘다
-    static final int INPUT_ARC = 20;    // 모서리 둥글기
+    static final int INPUT_HEIGHT = 40;
+    static final int INPUT_ARC = 20;
 
     private Theme() {
     }
 
-    /** 기본 글꼴 크기를 조금 키운다. 화면을 만들기 전에 한 번 부른다. */
     public static void install() {
         for (String key : new String[]{"Label.font", "Button.font", "Table.font", "TableHeader.font", "TextField.font",
                 "ComboBox.font", "TextArea.font", "OptionPane.messageFont", "OptionPane.buttonFont"}) {
@@ -85,17 +82,14 @@ public final class Theme {
         return label;
     }
 
-    /** 강조 버튼: 빨강 바탕에 흰 글씨. 화면마다 가장 중요한 동작 하나에만 쓴다. */
     static JButton primary(String text) {
         return new RoundButton(text, true);
     }
 
-    /** 보조 버튼: 흰 바탕에 테두리. */
     static JButton secondary(String text) {
         return new RoundButton(text, false);
     }
 
-    /** 흰 바탕의 둥근 카드에 내용을 담는다. */
     static JPanel card(Component content) {
         RoundPanel card = new RoundPanel(14, CARD, LINE);
         card.setLayout(new java.awt.BorderLayout());
@@ -104,7 +98,6 @@ public final class Theme {
         return card;
     }
 
-    /** 카드 안에 들어갈 패널들은 바탕을 칠하지 않게 한다 (카드의 흰색이 보이도록). */
     static void transparent(Component component) {
         if (component instanceof JPanel && !(component instanceof RoundPanel)) {
             ((JPanel) component).setOpaque(false);
@@ -124,7 +117,7 @@ public final class Theme {
         scroll.setBorder(BorderFactory.createLineBorder(LINE));
         scroll.getViewport().setBackground(CARD);
         scroll.getVerticalScrollBar().setUnitIncrement(20);
-        if (view instanceof JTable) { // 스크롤바 위의 빈 모서리도 머리글과 같은 색으로
+        if (view instanceof JTable) {
             JPanel corner = new JPanel();
             corner.setBackground(HEADER);
             corner.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, LINE));
@@ -133,7 +126,6 @@ public final class Theme {
         return scroll;
     }
 
-    /** 표: 줄 간격을 넓히고 세로선을 없애고 머리글을 옅은 회색으로. rowTint가 참인 줄은 옅은 파랑(내 요청). */
     static void table(JTable table, IntPredicate rowTint) {
         table.setRowHeight(34);
         table.setShowVerticalLines(false);
@@ -165,18 +157,19 @@ public final class Theme {
         });
     }
 
-    /** 상태를 알약 모양으로 그리는 칸 (가능/제외, 대기/매칭완료/취소, 마감/빈자리, 내 요청). */
     static TableCellRenderer pill(IntPredicate rowTint) {
         return new PillRenderer(rowTint);
     }
 
-    /** 글자에 따라 알약의 {바탕, 글자} 색. */
     private static Color[] pillColors(String text) {
         if (text.startsWith("마감") || text.startsWith("제외")) {
             return new Color[]{ACCENT_SOFT, ACCENT_DARK};
         }
         if (text.startsWith("빈자리") || text.startsWith("가능") || text.startsWith("매칭완료")) {
             return new Color[]{GREEN_SOFT, GREEN};
+        }
+        if (text.startsWith("겹침")) {
+            return new Color[]{AMBER_SOFT, AMBER};
         }
         if (text.startsWith("대기") || text.startsWith("내 요청")) {
             return new Color[]{BLUE_SOFT, BLUE};
@@ -191,7 +184,6 @@ public final class Theme {
         return rowTint != null && rowTint.test(row) ? ROW_MINE : CARD;
     }
 
-    /** 일반 칸: 왼쪽 여백을 두고, 줄 바탕색(선택/내 요청)을 맞춘다. */
     private static final class CellRenderer extends DefaultTableCellRenderer {
         private final IntPredicate rowTint;
 
@@ -246,8 +238,7 @@ public final class Theme {
                 g.fillRoundRect(x, y, width, height, height, height);
                 g.setColor(colors[1]);
                 g.setFont(getFont());
-                // setClip으로 바꾸면 표가 정해 준 그리기 영역을 무시해서, 반쯤 가려진 줄의 알약이 표 밖으로 삐져나온다.
-                // clipRect는 기존 영역과 겹치는 부분만 남긴다
+
                 g.clipRect(x, y, width - 8, height);
                 g.drawString(text, x + 10, y + (height + metrics.getAscent() - metrics.getDescent()) / 2);
             }
@@ -255,12 +246,10 @@ public final class Theme {
         }
     }
 
-    /** 둥근 입력 칸. 운영체제 입력 칸은 작고 각져서 직접 그린다. 글자를 넣는 중이면 테두리가 빨갛게 된다. */
     static JTextField field(int columns) {
         return new RoundField(columns);
     }
 
-    /** 둥근 선택 상자. */
     static <T> JComboBox<T> combo() {
         return new RoundCombo<>();
     }
@@ -273,7 +262,6 @@ public final class Theme {
         return box;
     }
 
-    /** 입력 칸·선택 상자의 둥근 바탕과 테두리. */
     private static void paintInput(Graphics graphics, JComponent c, boolean focused) {
         Graphics2D g = (Graphics2D) graphics.create();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
@@ -308,7 +296,7 @@ public final class Theme {
         }
 
         @Override
-        public void updateUI() { // 운영체제 모양 대신 기본 모양을 써야 바탕을 직접 그릴 수 있다
+        public void updateUI() {
             setUI(new BasicTextFieldUI());
         }
 
@@ -337,7 +325,7 @@ public final class Theme {
                 public Component getListCellRendererComponent(JList<?> list, Object value, int index,
                                                               boolean selected, boolean focus) {
                     JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, selected, false);
-                    label.setBorder(index < 0 ? null : BorderFactory.createEmptyBorder(7, 12, 7, 12)); // -1은 상자에 보이는 값
+                    label.setBorder(index < 0 ? null : BorderFactory.createEmptyBorder(7, 12, 7, 12));
                     label.setBackground(selected && index >= 0 ? ACCENT_SOFT : CARD);
                     label.setForeground(TEXT);
                     return label;
@@ -349,7 +337,7 @@ public final class Theme {
         public void updateUI() {
             setUI(new BasicComboBoxUI() {
                 @Override
-                protected JButton createArrowButton() { // 아래 화살표를 직접 그린다
+                protected JButton createArrowButton() {
                     JButton arrow = new JButton() {
                         @Override
                         protected void paintComponent(Graphics graphics) {
@@ -375,7 +363,6 @@ public final class Theme {
 
                 @Override
                 public void paintCurrentValueBackground(Graphics g, java.awt.Rectangle bounds, boolean focus) {
-                    // 바탕은 RoundCombo가 둥글게 그린다
                 }
 
                 @Override
@@ -389,7 +376,7 @@ public final class Theme {
 
         @Override
         public Dimension getPreferredSize() {
-            return new Dimension(super.getPreferredSize().width + 26, INPUT_HEIGHT); // 글자가 '...'으로 잘리지 않게 여유를 둔다
+            return new Dimension(super.getPreferredSize().width + 26, INPUT_HEIGHT);
         }
 
         @Override
@@ -399,7 +386,6 @@ public final class Theme {
         }
     }
 
-    /** 모서리가 둥근 패널 (카드, 사용자 표시). */
     static final class RoundPanel extends JPanel {
         private final int radius;
         private final Color fill;
@@ -426,7 +412,6 @@ public final class Theme {
         }
     }
 
-    /** 직접 그리는 둥근 버튼. 운영체제 버튼은 색을 바꿀 수 없어서 따로 그린다. */
     private static final class RoundButton extends JButton {
         private final boolean primary;
 
@@ -485,7 +470,6 @@ public final class Theme {
         }
     }
 
-    /** 위쪽 메뉴의 탭 글자. 고른 탭은 빨간 글씨에 아래 빨간 줄 (시간표 앱의 메뉴 모양). */
     static final class NavButton extends JButton {
         private boolean selectedTab;
 

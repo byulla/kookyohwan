@@ -12,6 +12,8 @@ import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTextField;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
@@ -23,11 +25,6 @@ import java.util.Optional;
 
 import static kookyohwan.gui.Session.ROW_GAP;
 
-/**
- * 내 시간표 탭(R2): 격자 그림 + 과목 넣기·빼기 + 시간표 저장(확정).
- * 편집 중에는 지금 듣는 과목을 자유롭게 옮겨 적고, [시간표 저장]으로 확정하면
- * 그 뒤로는 빈자리가 있는 과목만 수강신청할 수 있다(마감 과목은 교환 요청).
- */
 class TimetablePanel extends JPanel {
     private static final Color EDITING = new Color(0xB45309);
 
@@ -40,8 +37,8 @@ class TimetablePanel extends JPanel {
     private final JTextField codeField = Theme.field(9);
     private final JButton addButton = Theme.secondary("수강신청");
     private final JComboBox<String> removeBox = Theme.combo();
-    private final List<Course> removeCourses = new ArrayList<>(); // removeBox의 항목 순서와 같은 과목
-    private final JButton removeButton = Theme.secondary("빼기");
+    private final List<Course> removeCourses = new ArrayList<>();
+    private final JButton removeButton = Theme.secondary("과목 삭제");
     private final JButton confirmButton = Theme.primary("시간표 저장 (확정)");
 
     TimetablePanel(Session session) {
@@ -61,7 +58,7 @@ class TimetablePanel extends JPanel {
         actions.add(addLabel);
         actions.add(codeField);
         actions.add(addButton);
-        actions.add(new JLabel("   뺄 과목"));
+        actions.add(new JLabel("   삭제할 과목"));
         actions.add(removeBox);
         actions.add(removeButton);
         actions.add(confirmButton);
@@ -74,6 +71,13 @@ class TimetablePanel extends JPanel {
         addButton.addActionListener(e -> UiEvents.afterInput(this::addByCode));
         codeField.addActionListener(e -> UiEvents.afterInput(this::addByCode));
         removeButton.addActionListener(e -> UiEvents.afterInput(this::removeSelected));
+        canvas.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                canvas.courseAt(e.getPoint()).ifPresent(
+                        course -> TimetableActions.remove(TimetablePanel.this, session, course));
+            }
+        });
         confirmButton.addActionListener(e -> UiEvents.afterInput(
                 () -> TimetableActions.confirmTimetable(this, session)));
         session.addListener(this::refresh);

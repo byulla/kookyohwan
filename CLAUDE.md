@@ -33,7 +33,10 @@
     │   ├── students.csv             학생 시간표 — 종료 시 저장
     │   └── requests.csv             교환 요청 — 종료 시 저장
     ├── data-ac8/                    AC8(S13) 시연용 데이터: 학생F + 요청 #6~#8 포함. `java -cp out kookyohwan.Main data-ac8`
-    ├── test/ConflictTest.java       충돌 테스트 170건 (main으로 실행, 파일 머리 주석에 명령)
+    ├── test/                        테스트 3개 (JUnit 없이 main으로 실행). `javac -encoding UTF-8 -cp out -d out test/*.java` → `java -cp out 이름`
+    │   ├── ConflictTest.java        충돌 규칙 181개 (겹침·학점·중복 수강·교환 확정, 무작위 조작)
+    │   ├── ScenarioTest.java        단위 + 계획서 시나리오 108개 (data-ac8 사본으로 AC1·2·3·6·7·8·9)
+    │   └── EdgeCaseTest.java        예외·경계 2,191개 (깨진 파일, 엉뚱한 입력, 입력 끊김, 무작위 입력). `-v`를 붙이면 통과한 것도 출력
     ├── out/                         javac 결과 (제출 제외)
     └── src/kookyohwan/
         ├── Main.java                콘솔 진입점: 복원 → login() → ConsoleUI.run() → 저장
@@ -96,8 +99,8 @@
     | 클래스 | 상태 | 동작 |
     |---|---|---|
     | `Repository<K, V>` | `Map<K, V>` — `LinkedHashMap` (입력 순서 유지) | `put`, `find(key)` → `Optional<V>`, `exists(key)`, `all()`, `size()` |
-    | `CourseCatalog` | `Repository<String, Course>` (코드 → 과목) | `all()`, `findByCode(code)`, `findByName(name)` → 분반 목록, `search(keyword)` 메뉴 1 검색, `existsName(name)`, `resolveName(input)` → 코드면 과목명으로, 과목명이면 그대로, 아니면 empty |
-    | `StudentRegistry` | `Repository<String, Student>` (학번 → 학생) | `find(id)` → `Optional<Student>`, `register(id, name)` 빈 시간표로 등록, `all()` |
+    | `CourseCatalog` | `Repository<String, Course>` (코드 → 과목) | `all()`, `findByCode(code)`, `findByName(name)` → 분반 목록, `search(keyword)` 메뉴 1 검색(교과목명·교수명 일부, 학수번호 앞자리. 영문 대소문자 무시), `existsName(name)`, `resolveName(input)` → 코드면 과목명으로, 과목명이면 그대로, 아니면 empty |
+    | `StudentRegistry` | `Repository<String, Student>` (학번 → 학생) | `find(id)` → `Optional<Student>`, `register(id, name)` 빈 시간표로 등록(이미 있는 학번이면 `IllegalArgumentException` — 기존 시간표를 덮어쓰지 않게), `all()` |
     | `RequestBoard` | `Repository<Integer, SwapRequest>`, 다음 요청 번호 | `register(student, give, wantName)`, `waitingOf(studentId)`, `waitingExcept(studentId)`, `isGiving(studentId, courseCode)`, `cancel(id)` |
     | `MatchService` | `RequestBoard`, `StudentRegistry`(상대 시간표 조회용) | `match(myRequest, myTimetable)` → `List<MatchResult>` |
     
@@ -164,6 +167,7 @@
       - 로그인은 학번. 이름은 출력용.
       - **최대 18학점**(`Timetable.MAX_CREDITS`), 예외 없음. 바꾼 뒤 총 학점이 18을 넘으면 시간표 추가·교체를 거절하고(`[거절] …: 최대 18학점을 넘습니다`), 매칭에서도 교환 후 내 쪽이나 상대 쪽이 넘으면 `[제외] 내 학점 초과` / `상대 학점 초과`, 교환 확정도 거절. 학점 판정은 `Timetable.exceedsLimit` 한 곳. 파일 복원(`Timetable.restore`)만 학점을 보지 않는다(제한 전에 저장한 시간표도 읽히게 — 그런 시간표는 과목을 빼서 18 이하로 만들기 전에는 아무것도 못 넣고 교환도 못 한다).
       - **중복 수강 금지**(2026-11-11, 충돌 테스트에서 발견): 같은 과목(과목명 + 분반을 뺀 학수번호 앞부분이 같음, `Course.isSameSubject`)은 한 분반만. 시간이 안 겹치는 다른 분반이나 시간 없는 과목은 겹침 검사로 못 잡아서 따로 본다. 판정은 `Timetable.findSameSubject` 한 곳 — 시간표 추가·교체(`[거절] …: 같은 과목의 002 분반을 이미 듣고 있습니다`), 요청 등록(`이미 듣고 있는 과목입니다`), 매칭(`[제외] 내가/상대가 이미 듣는 과목`)이 전부 이것을 쓴다. 파일 복원만 보지 않는다. 희망 과목은 교양 분반이 하나라도 있어야 한다(`교양 과목만 교환할 수 있습니다`). 교환 확정 때는 내놓던 과목이 없어진 요청과 **방금 얻은 과목을 희망하던 요청**을 같이 취소한다. `Timetable.replace`는 겹침이 남거나 중복이면 스스로 거절한다(부르는 쪽이 검사를 빠뜨려도 어긋난 시간표가 안 생기게).
+      - **겹치는 내 과목을 빼고 교환**(2026-11-11, 사용자 제안, GUI만): 매칭에서 내 시간표 겹침뿐이고 나머지 조건(학점·상대 쪽·중복 수강)이 다 맞으면 `MatchResult.isResolvable()` + `getDroppable()`(뺄 과목)이 붙는다. 판정과 사유는 그대로 `[제외] 내 시간표 겹침: …`이라 콘솔 화면과 계획서 AC는 안 바뀐다. GUI 매칭 표에는 `겹침`(노랑)으로 보이고, 고르고 확정을 누르면 **기존 확인 창 하나에서** "○○ 과목과 시간이 겹칩니다. 빼고 교환할까요?"를 묻는다(창을 더 띄우지 않음). 동의하면 `ExchangeService.confirm(mine, other, true)`가 겹치는 과목까지 같이 뺀다. 겹치는 과목이 내 다른 대기 요청의 내놓는 과목이면 불가. 상대 쪽 겹침은 상대 과목을 대신 뺄 수 없으니 그대로 제외.
       - **시간표 상태: 편집 중 → 확정**(`Student.isTimetableConfirmed`, `StudentRegistry.confirmTimetable`, 되돌릴 수 없음). 편집 중에는 지금 듣는 과목을 정원과 상관없이 옮겨 적는다. 확정 후에는 **빈자리가 있는 과목만** 수강신청할 수 있고 마감 과목은 교환 요청으로만 얻는다 — 과목 목록에서 아무 과목이나 넣을 수 있으면 교환 상대를 찾을 이유가 없어서(사용자 지적, 2026-11-11). 교환 요청 등록은 확정 후에만. 정원·빈자리 판정은 `EnrollmentService` 한 곳(`validateEnroll`, `isFull`, `describe`). 과목 빼기는 `Timetable.remove`(내놓는 중인 과목은 거절).
     
     ## 터미널 UI 규칙
@@ -185,7 +189,8 @@
     | `[가능]` `[제외]` | 매칭 표의 판정 열 | `[제외] 겹침: 컴퓨터공학개론` |
     
     - 거절 형식 통일: **`[거절] 대상: 사유. …을 변경하지 않았습니다.`** 그리고 같은 입력을 다시 받는다.
-      - 상태를 크게 바꾸는 동작(교체, 등록)은 `(y/n)`으로 먼저 확인. n이면 `[취소]`.
+      - 상태를 크게 바꾸는 동작(교체, 등록)은 `(y/n)`으로 먼저 확인. n이면 `[취소]`. 한글 자판 상태로 누른 `ㅛ`/`ㅜ`도 y/n으로 받는다.
+      - 메뉴 동작 중 예상 못 한 `RuntimeException`은 `ConsoleUI.run`이 잡아 `[오류]`를 내고 메뉴로 돌아간다(AC9: 죽지 않고, 종료 때 저장은 그대로 된다).
       - 하위 입력에서 빈 줄(Enter)이면 메뉴로 복귀. 목록 출력 후에는 메뉴를 다시 표시.
       - 프롬프트는 `이름 > ` 형식으로 무엇을 넣는지 명시 (예: `희망 과목명 (분반 무관) > `).
       - 메뉴 번호 고정: `1` 과목 목록(3천 개가 넘어 전체 출력 대신 검색어로 조회, 최대 30줄), `2` 내 시간표/과목 추가, `3` 요청 등록, `4` 요청 목록, `5` 매칭 실행, `9` 사용자 전환, `0` 저장하고 종료. 그 밖의 번호는 `[오류] 메뉴에 있는 번호(0~5, 9)를 입력하세요.`
@@ -194,16 +199,17 @@
     
     ## 데이터 파일 형식 (`data/`)
     
-    - UTF-8, 첫 줄 헤더, 구분자 쉼표. 한 칸에 값이 여러 개면 **세미콜론(`;`)** (과목 코드 목록, 시간 목록).
+    - UTF-8, **첫 줄은 반드시 헤더**(첫 칸이 `코드`/`학번`/`번호`가 아니면 읽기를 거절 — 헤더 없는 파일의 첫 줄이 조용히 사라지던 것을 막음, 2026-11-18. 맨 앞 BOM은 허용), 구분자 쉼표. 한 칸에 값이 여러 개면 **세미콜론(`;`)** (과목 코드 목록, 시간 목록).
       - 시간 표기 `월3-4` = 월요일 3교시부터 4교시까지(교시 번호만, 실제 시각 변환은 범위 밖).
       - 상태는 enum 이름(`WAITING`)으로 저장.
       - 값에 쉼표가 있으면 큰따옴표로 감싼다 (`FileStorage.splitCsv`/`quote`). 처음에는 '과목명에 쉼표 금지'였지만 실제 교과목명에 쉼표가 있어(예: `P-실무프로젝트 (4주/융합,메이커스)`) 이름을 그대로 쓰려고 바꿈.
       - **과목 코드 = 학교 학수번호 8자리 그대로**(`11393001`), 분반 = 끝 3자리(`001`), 과목명 = 교과목명 그대로(앞뒤 공백만 제거). 구분은 이수 구분을 묶음: 전필·전선 → MAJOR, 교필·교선·계교 → GENERAL, 교직 → TEACHING, 군사 → MILITARY. 시간은 `화1 ,화2` 같은 교시 나열을 `화1-2` 구간으로 합침.
+      - 읽을 때 거절하는 것(2026-11-18 추가): 빈 과목명·빈 이름·빈 희망 과목명, 숫자가 아닌 학번(로그인이 숫자만 받으므로), 요청 번호 1~999999999 밖.
       - 복원 순서: `courses.csv` → `students.csv` → `requests.csv` (요청이 과목·학생을 참조하므로).
       - 저장 시점: 메뉴 0과 메뉴 9. `students.csv`, `requests.csv`를 통째로 다시 쓴다. `courses.csv`는 읽기만.
     
     ```
-    courses.csv   코드,과목명,분반,구분,시간,교수,강의실,학점   +정원,수강인원  예) 09392004,이산수학,004,MAJOR,월4-6,이경복,AI관-415,3,60,60  (5번째 칸 뒤는 없어도 읽힘. 정원은 실제 값, 수강인원은 시연용으로 만든 값)
+    courses.csv   코드,과목명,분반,구분,시간,교수,강의실,학점   +정원,수강인원  예) 09392004,이산수학,004,MAJOR,월4-6,이경복,AI관-415,3,60,60  (5번째 칸 뒤는 없어도 읽힘. 정원은 실제 값, 수강인원은 시연용으로 만든 값. **수강인원에는 students.csv의 학생을 넣지 않는다** — 화면의 수강인원 = 이 값 + 그 과목을 듣는 이 프로그램 학생 수(`EnrollmentService.enrolledOf`). 둘의 합이 정원을 넘게 적으면 학생이 과목을 삭제해도 빈자리가 안 생긴다. 2026-11-18에 51개 과목의 값을 이 기준으로 고침)
     students.csv  학번,이름,과목코드,시간표상태         예) 202612345,학생A,09392004;08306001;05306002,CONFIRMED
     requests.csv  번호,학번,내놓는과목코드,희망과목명,상태  예) 6,202612345,05306002,생명과 나눔,WAITING
     ```
