@@ -1,6 +1,7 @@
 package kookyohwan.service;
 
 import kookyohwan.model.Course;
+import kookyohwan.model.CycleMatch;
 import kookyohwan.model.MatchResult;
 import kookyohwan.model.MatchVerdict;
 import kookyohwan.model.Student;
@@ -13,6 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 public class MatchService {
+    public static final int CYCLE_SIZE = 3;
+
     private final RequestBoard board;
     private final StudentRegistry registry;
 
@@ -92,6 +95,85 @@ public class MatchService {
             results.add(MatchResult.possible(other, receive, reason));
         }
         return results;
+    }
+
+    public List<CycleMatch> matchCycles(SwapRequest mine, Timetable myTimetable) {
+        List<CycleMatch> results = new ArrayList<>();
+        List<SwapRequest> path = new ArrayList<>();
+        path.add(mine);
+        searchCycles(path, board.waitingExcept(mine.getStudentId()), myTimetable, results);
+        return results;
+    }
+
+    private void searchCycles(List<SwapRequest> path, List<SwapRequest> others, Timetable myTimetable,
+                              List<CycleMatch> results) {
+        SwapRequest last = path.get(path.size() - 1);
+        if (path.size() == CYCLE_SIZE) {
+            if (last.getWantName().equals(path.get(0).getGiveCourse().getName())) {
+                results.add(judgeCycle(path, myTimetable));
+            }
+            return;
+        }
+        for (SwapRequest next : others) {
+            if (!next.getGiveCourse().getName().equals(last.getWantName())
+                    || hasStudent(path, next.getStudentId())) {
+                continue;
+            }
+            path.add(next);
+            searchCycles(path, others, myTimetable, results);
+            path.remove(path.size() - 1);
+        }
+    }
+
+    private static boolean hasStudent(List<SwapRequest> path, String studentId) {
+        for (SwapRequest r : path) {
+            if (r.getStudentId().equals(studentId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private CycleMatch judgeCycle(List<SwapRequest> path, Timetable myTimetable) {
+        List<String> notes = new ArrayList<>();
+        for (int i = 0; i < path.size(); i++) {
+            SwapRequest r = path.get(i);
+            Course receive = path.get((i + 1) % path.size()).getGiveCourse();
+            Timetable table = myTimetable;
+            if (i > 0) {
+                Optional<Student> student = registry.find(r.getStudentId());
+                if (student.isEmpty()) {
+                    notes.add("#" + r.getId() + " 시간표 미확인");
+                    continue;
+                }
+                table = student.get().getTimetable();
+            }
+            Optional<String> problem = cycleProblem(table, receive, r.getGiveCourse());
+            if (problem.isPresent()) {
+                return CycleMatch.excluded(path, i == 0 ? MatchVerdict.EXCLUDED_MINE : MatchVerdict.EXCLUDED_PARTNER,
+                        (i == 0 ? "내 " : "#" + r.getId() + " ") + problem.get());
+            }
+        }
+        return CycleMatch.possible(path, notes.isEmpty() ? "겹침 없음" : "겹침 없음 (" + String.join(", ", notes) + ")");
+    }
+
+    private Optional<String> cycleProblem(Timetable table, Course incoming, Course leaving) {
+        if (!table.contains(leaving.getCode())) {
+            return Optional.of("시간표에 내놓는 과목이 없음");
+        }
+        Optional<Course> same = table.findSameSubject(incoming, Collections.singletonList(leaving));
+        if (same.isPresent()) {
+            return Optional.of("시간표에 이미 있는 과목: " + same.get().getName() + " " + same.get().getSection());
+        }
+        Optional<Course> conflict = table.findConflict(incoming, leaving);
+        if (conflict.isPresent()) {
+            return Optional.of("시간표 겹침: " + conflict.get().getName());
+        }
+        if (table.exceedsLimit(incoming, Collections.singletonList(leaving))) {
+            return Optional.of("학점 초과: 교환 후 " + table.creditsAfter(incoming, Collections.singletonList(leaving))
+                    + "학점 (최대 " + Timetable.MAX_CREDITS + ")");
+        }
+        return Optional.empty();
     }
 
     private Optional<String> partnerProblem(SwapRequest mine, SwapRequest other) {

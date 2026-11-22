@@ -42,7 +42,7 @@ final class TimetableActions {
         if (conflicts.isEmpty()) {
             table.add(course);
             session.say("[등록] " + course.getCode() + " " + Session.label(course) + " 추가. " + table.size() + "과목 "
-                    + table.getTotalCredits() + "학점");
+                    + table.getTotalCredits() + "학점" + cancelFulfilled(session));
             session.fireChanged();
             return;
         }
@@ -69,8 +69,17 @@ final class TimetableActions {
         }
         table.replace(conflicts, course);
         session.say("[등록] " + String.join(", ", removedNames) + " 삭제, " + course.getName() + " "
-                + course.getSection() + " 추가. " + table.size() + "과목 " + table.getTotalCredits() + "학점");
+                + course.getSection() + " 추가. " + table.size() + "과목 " + table.getTotalCredits() + "학점"
+                + cancelFulfilled(session));
         session.fireChanged();
+    }
+
+    private static String cancelFulfilled(Session session) {
+        StringBuilder note = new StringBuilder();
+        for (SwapRequest r : session.getBoard().cancelFulfilled(session.getMe())) {
+            note.append("  / 요청 #").append(r.getId()).append(" 자동 취소(희망 과목을 직접 넣음)");
+        }
+        return note.toString();
     }
 
     static void remove(Component parent, Session session, Course course) {

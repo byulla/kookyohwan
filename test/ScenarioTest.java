@@ -17,7 +17,7 @@ public class ScenarioTest {
     static final List<String> failures = new ArrayList<>();
     static Path base;
 
-    static final String A = "202612345", B = "202612346", C = "202612347", D = "202612348",
+    static final String A = "202633781", B = "202612346", C = "202612347", D = "202612348",
             E = "202612349", G = "202612350", F = "202612351";
     static final String FRENCH = "05306002", DISCRETE = "09392004", OS = "08306001",
             LIFE6 = "11393006", LIFE2 = "11393002", LIFE3 = "11393003", WRITING = "14632001";
@@ -428,7 +428,7 @@ public class ScenarioTest {
         sec("10. 계획서 시나리오: 콘솔 화면 (data-ac8 사본으로 실제 프로그램 실행)");
         t("시작: 복원 안내 -> 학번 -> 메뉴", () -> { Path dir = copyData("data-ac8", "con-start");
             String out = runConsole(dir, A, "0");
-            seq(out, "[복원] courses.csv", "과목 3242개", "[복원] students.csv", "학생 7명", "[복원] requests.csv", "교환 요청 8건", "학번 입력 > ", "[확인] 조혜라 님의 시간표를 불러왔습니다. (3과목)",
+            seq(out, "[복원] courses.csv", "과목 3242개", "[복원] students.csv", "학생 7명", "[복원] requests.csv", "교환 요청 8건", "학번 입력 (테스트 학번 202633781) > ", "[확인] 조혜라 님의 시간표를 불러왔습니다. (3과목)",
                     " 1. 과목 목록 보기", " 2. 내 시간표 보기 / 과목 추가", " 3. 교환 요청 등록", " 4. 교환 요청 목록 보기", " 5. 매칭 실행", " 9. 사용자 전환", " 0. 저장하고 종료",
                     "[저장] students.csv", "[저장] requests.csv", "구교환을 종료합니다."); });
         t("메뉴 1: 검색어로 과목 조회, 없는 검색어에도 계속 진행", () -> { Path dir = copyData("data-ac8", "con-list");
@@ -436,7 +436,7 @@ public class ScenarioTest {
             seq(out, "[과목 목록] 총 3242개", "[확인] '프랑스어1' 검색 결과 2개", "05306001", "05306002", "화 3-4", "구교환을 종료합니다."); });
         t("메뉴 2: 내 시간표 격자와 요약 줄", () -> { Path dir = copyData("data-ac8", "con-grid");
             String out = runConsole(dir, A, "2", "", "0");
-            seq(out, "[내 시간표] 조혜라 (202612345)  3과목  8학점 (최대 18)", "|      월      |      화      |", " 3  |              |프랑스어1     |", " 4  |이산수학      |05306002      |",
+            seq(out, "[내 시간표] 조혜라 (202633781)  3과목  8학점 (최대 18)", "|      월      |      화      |", " 3  |              |프랑스어1     |", " 4  |이산수학      |05306002      |",
                     " 전공: 이산수학, 운영체제   교양: 프랑스어1"); });
         t("메뉴 4: 요청 목록에 내 요청 표시", () -> { Path dir = copyData("data-ac8", "con-req");
             String out = runConsole(dir, A, "4", "0");

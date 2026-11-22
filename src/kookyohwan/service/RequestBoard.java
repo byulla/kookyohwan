@@ -6,6 +6,7 @@ import kookyohwan.model.Student;
 import kookyohwan.model.SwapRequest;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,6 +21,10 @@ public class RequestBoard {
 
     public SwapRequest register(Student student, Course give, String wantName) {
         validate(student, give, wantName);
+        if (nextId < 1 || nextId > SwapRequest.MAX_ID) {
+            throw new RequestRejectedException(give.getName() + " -> " + wantName,
+                    "요청 번호를 더 만들 수 없습니다 (최대 " + SwapRequest.MAX_ID + ")");
+        }
         SwapRequest request = new SwapRequest(nextId, student.getId(), give, wantName, RequestStatus.WAITING);
         requests.put(request.getId(), request);
         nextId++;
@@ -55,7 +60,7 @@ public class RequestBoard {
                 continue;
             }
             anyGeneral = true;
-            if (student.getTimetable().findSameSubject(section, java.util.Collections.emptyList()).isPresent()) {
+            if (student.getTimetable().findSameSubject(section, Collections.emptyList()).isPresent()) {
                 throw new RequestRejectedException(wantName, "이미 듣고 있는 과목입니다");
             }
         }
@@ -68,6 +73,21 @@ public class RequestBoard {
                         "같은 내용의 대기 요청이 이미 있습니다 (#" + r.getId() + ")");
             }
         }
+    }
+
+    public List<SwapRequest> cancelFulfilled(Student student) {
+        List<SwapRequest> cancelled = new ArrayList<>();
+        for (SwapRequest r : waitingOf(student.getId())) {
+            boolean has = false;
+            for (Course section : catalog.findByName(r.getWantName())) {
+                has |= section.isGeneral() && student.getTimetable()
+                        .findSameSubject(section, Collections.emptyList()).isPresent();
+            }
+            if (has && cancel(r.getId())) {
+                cancelled.add(r);
+            }
+        }
+        return cancelled;
     }
 
     public void put(SwapRequest request) {

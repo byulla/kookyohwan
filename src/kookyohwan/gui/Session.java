@@ -26,6 +26,7 @@ public class Session {
     private final Function<Student, String> saver;
     private final List<Runnable> listeners = new ArrayList<>();
     private Consumer<String> statusSink = message -> { };
+    private Consumer<String> wantSink = wantName -> { };
     private Student me;
 
     public Session(Student me, CourseCatalog catalog, StudentRegistry registry, RequestBoard board,
@@ -93,6 +94,21 @@ public class Session {
 
     public void save() {
         say(saver.apply(me));
+    }
+
+    public void saveQuietly() {
+        String result = saver.apply(me);
+        if (result.startsWith("[오류]")) {
+            say(result);
+        }
+    }
+
+    public void setWantSink(Consumer<String> wantSink) {
+        this.wantSink = wantSink;
+    }
+
+    public void requestExchange(String wantName) {
+        wantSink.accept(wantName);
     }
 
     public String nameOf(String studentId) {

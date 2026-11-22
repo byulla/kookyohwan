@@ -12,11 +12,12 @@ src/kookyohwan/gui/LoginGate.java
 src/kookyohwan/gui/MainPanel.java
 src/kookyohwan/gui/TimetableCanvas.java
 src/kookyohwan/gui/TimetablePanel.java
-src/kookyohwan/gui/MatchPanel.java
+src/kookyohwan/gui/ExchangePanel.java
 src/kookyohwan/gui/Theme.java
 src/kookyohwan/gui/Session.java
 src/kookyohwan/gui/CoursePanel.java
 src/kookyohwan/model/TimeSlot.java
+src/kookyohwan/model/CycleMatch.java
 src/kookyohwan/model/Day.java
 src/kookyohwan/model/SwapRequest.java
 src/kookyohwan/model/MatchResult.java

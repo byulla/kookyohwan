@@ -1329,7 +1329,7 @@ public class EdgeCaseTest {
                     } }
                 String[] lines = script.toArray(new String[0]); String out = console(dir, lines); sane(dir, out); W after = load(dir);
                 for (Student s : before.registry.all()) { ok(after.registry.find(s.getId()).isPresent(), "학생 " + s.getId() + " 이 사라짐"); eq(s.getName(), after.get(s.getId()).getName(), "이름"); if (s.isTimetableConfirmed()) ok(after.get(s.getId()).isTimetableConfirmed(), "확정이 풀림 " + s.getId()); }
-                for (SwapRequest r : before.board.all()) { SwapRequest now = after.board.find(r.getId()).orElseThrow(() -> new AssertionError("요청 #" + r.getId() + " 이 사라짐")); eq(r.getStudentId(), now.getStudentId(), "요청자"); eq(r.getGiveCourse().getCode(), now.getGiveCourse().getCode(), "내놓는 과목"); eq(r.getWantName(), now.getWantName(), "희망"); eq(r.getStatus(), now.getStatus(), "콘솔에는 상태를 바꾸는 기능이 없음 #" + r.getId()); }
+                for (SwapRequest r : before.board.all()) { SwapRequest now = after.board.find(r.getId()).orElseThrow(() -> new AssertionError("요청 #" + r.getId() + " 이 사라짐")); eq(r.getStudentId(), now.getStudentId(), "요청자"); eq(r.getGiveCourse().getCode(), now.getGiveCourse().getCode(), "내놓는 과목"); eq(r.getWantName(), now.getWantName(), "희망"); if (r.getStatus() != now.getStatus()) { boolean got = false; for (Course c : after.get(r.getStudentId()).getTimetable().getCourses()) got |= c.getName().equals(r.getWantName()); ok(r.getStatus() == RequestStatus.WAITING && now.getStatus() == RequestStatus.CANCELLED && got, "희망 과목을 직접 넣었을 때의 자동 취소 말고는 콘솔에서 요청 상태가 바뀌면 안 됨 #" + r.getId() + " " + r.getStatus() + "->" + now.getStatus()); } }
                 stats[0] += after.board.size() - before.board.size(); stats[1] += out.split("\\[등록\\]", -1).length - 1; String again = console(dir, lines[0], "0"); sane(dir, again); eq(after.snapshot(), snap(dir), "다시 실행해도 그대로"); }); }
         t("무작위 입력이 실제로 상태를 많이 바꿨다 (테스트가 약하지 않음)", () -> { ok(stats[0] > 100, "새 요청 " + stats[0] + "건"); ok(stats[1] > 500, "[등록] " + stats[1] + "회"); System.out.println("       새 요청 " + stats[0] + "건, [등록] " + stats[1] + "회"); });
         done();
@@ -1364,7 +1364,7 @@ public class EdgeCaseTest {
         Path copy = dirOf("real-console");
         for (String f : new String[]{"courses.csv", "students.csv", "requests.csv"}) Files.copy(Paths.get("data-ac8", f), copy.resolve(f), StandardCopyOption.REPLACE_EXISTING);
         String original = snap(copy);
-        for (String id : new String[]{"202612345", "202612346", "202612347", "202612348", "202612349", "202612350", "202612351"}) t("data-ac8 사본: 학번 " + id + " 으로 메뉴 1·2·4·5를 돌아도 죽지 않고 상태가 그대로", () -> {
+        for (String id : new String[]{"202633781", "202612346", "202612347", "202612348", "202612349", "202612350", "202612351"}) t("data-ac8 사본: 학번 " + id + " 으로 메뉴 1·2·4·5를 돌아도 죽지 않고 상태가 그대로", () -> {
             String out = console(copy, id, "1", "생명과 나눔", "이경복", "", "2", "", "4", "5", "", "0"); endsCleanly(out); hasNot(out, "Exception"); has(out, "[교환 요청 목록] 총 8건"); eq(original, snap(copy), "상태"); });
         done();
     }

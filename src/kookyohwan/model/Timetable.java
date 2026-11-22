@@ -77,21 +77,21 @@ public class Timetable {
     }
 
     public int getTotalCredits() {
-        int total = 0;
+        long total = 0;
         for (Course c : courses) {
             total += c.getCredits();
         }
-        return total;
+        return (int) Math.min(total, Integer.MAX_VALUE);
     }
 
     public int creditsAfter(Course incoming, List<Course> removing) {
-        int total = incoming.getCredits();
+        long total = incoming.getCredits();
         for (Course c : courses) {
             if (!containsCode(removing, c.getCode())) {
                 total += c.getCredits();
             }
         }
-        return total;
+        return (int) Math.min(total, Integer.MAX_VALUE);
     }
 
     public boolean exceedsLimit(Course incoming, List<Course> removing) {

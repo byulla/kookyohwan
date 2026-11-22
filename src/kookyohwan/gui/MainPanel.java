@@ -17,7 +17,7 @@ import java.util.List;
 import java.util.Optional;
 
 public class MainPanel extends JPanel {
-    private static final String[] TABS = {"내 시간표", "과목 목록", "교환 요청", "매칭"};
+    private static final String[] TABS = {"내 시간표", "과목 목록", "교환", "전체 요청"};
 
     private final Session session;
     private final CardLayout cards = new CardLayout();
@@ -47,7 +47,6 @@ public class MainPanel extends JPanel {
         }
 
         JButton switchButton = Theme.secondary("사용자 전환");
-        JButton saveButton = Theme.secondary("저장");
         Theme.RoundPanel userChip = new Theme.RoundPanel(30, Theme.BACKGROUND, null);
         userChip.setLayout(new FlowLayout(FlowLayout.CENTER, 14, 7));
         userChip.add(user);
@@ -55,7 +54,6 @@ public class MainPanel extends JPanel {
         right.setOpaque(false);
         right.add(userChip);
         right.add(switchButton);
-        right.add(saveButton);
 
         JPanel header = new JPanel(new BorderLayout());
         header.setBackground(Theme.CARD);
@@ -67,8 +65,9 @@ public class MainPanel extends JPanel {
 
         content.setOpaque(false);
         content.setBorder(BorderFactory.createEmptyBorder(16, 18, 6, 18));
+        ExchangePanel exchange = new ExchangePanel(session);
         JComponent[] panels = {new TimetablePanel(session), new CoursePanel(session),
-                new RequestPanel(session), new MatchPanel(session)};
+                exchange, new RequestPanel(session)};
         for (int i = 0; i < panels.length; i++) {
             Theme.transparent(panels[i]);
             content.add(Theme.card(panels[i]), TABS[i]);
@@ -82,7 +81,11 @@ public class MainPanel extends JPanel {
         session.setStatusSink(status::setText);
         session.addListener(this::refreshUser);
         switchButton.addActionListener(e -> UiEvents.afterInput(this::switchUser));
-        saveButton.addActionListener(e -> UiEvents.afterInput(session::save));
+        session.addListener(session::saveQuietly);
+        session.setWantSink(wantName -> {
+            showTab(2);
+            exchange.prefillWant(wantName);
+        });
         refreshUser();
         showTab(0);
     }

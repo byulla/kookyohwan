@@ -21,6 +21,7 @@ import java.util.Scanner;
 
 public class Main {
     private static final String DEFAULT_DATA_DIR = "data";
+    private static final String TEST_ID = "202633781";
 
     public static void main(String[] args) {
         String dataDir = args.length > 0 ? args[0] : DEFAULT_DATA_DIR;
@@ -101,7 +102,8 @@ public class Main {
 
     private static Optional<Student> login(Scanner in, StudentRegistry registry) {
         while (true) {
-            String id = ask(in, "학번 입력 > ");
+            String hint = registry.find(TEST_ID).isPresent() ? " (테스트 학번 " + TEST_ID + ")" : "";
+            String id = ask(in, "학번 입력" + hint + " > ");
             if (id.isEmpty()) {
                 return Optional.empty();
             }

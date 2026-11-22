@@ -11,13 +11,13 @@ public class EnrollmentService {
     }
 
     public int enrolledOf(Course course) {
-        int count = course.getBaseEnrolled();
+        long count = course.getBaseEnrolled();
         for (Student s : registry.all()) {
             if (s.getTimetable().contains(course.getCode())) {
                 count++;
             }
         }
-        return count;
+        return (int) Math.min(count, Integer.MAX_VALUE);
     }
 
     public boolean hasLimit(Course course) {

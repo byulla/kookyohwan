@@ -14,12 +14,15 @@ import java.awt.Component;
 import java.util.Optional;
 
 public final class LoginGate {
+    private static final String TEST_ID = "202633781";
+
     private LoginGate() {
     }
 
     public static Optional<Student> ask(Component parent, StudentRegistry registry) {
         while (true) {
-            String id = prompt(parent, "구교환 - 학번 입력", "학번을 입력하세요.");
+            String hint = registry.find(TEST_ID).isPresent() ? " (테스트 학번 " + TEST_ID + ")" : "";
+            String id = prompt(parent, "구교환 - 학번 입력", "학번을 입력하세요." + hint);
             if (id == null || id.trim().isEmpty()) {
                 return Optional.empty();
             }

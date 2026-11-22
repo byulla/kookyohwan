@@ -39,6 +39,9 @@ public final class TextUtil {
         if (displayWidth(s) <= width) {
             return s;
         }
+        if (width < 2) {
+            return ".".repeat(Math.max(0, width));
+        }
         StringBuilder sb = new StringBuilder();
         int w = 0;
         for (int i = 0; i < s.length(); ) {

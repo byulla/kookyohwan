@@ -31,7 +31,10 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GraphicsEnvironment;
 import java.awt.RenderingHints;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.IntPredicate;
 
 public final class Theme {
@@ -60,13 +63,30 @@ public final class Theme {
     }
 
     public static void install() {
+        String family = koreanFamily();
         for (String key : new String[]{"Label.font", "Button.font", "Table.font", "TableHeader.font", "TextField.font",
                 "ComboBox.font", "TextArea.font", "OptionPane.messageFont", "OptionPane.buttonFont"}) {
             Font current = UIManager.getFont(key);
             if (current != null) {
-                UIManager.put(key, new FontUIResource(current.deriveFont(13f)));
+                UIManager.put(key, new FontUIResource(family == null ? current.deriveFont(13f)
+                        : new Font(family, current.getStyle(), 13)));
             }
         }
+    }
+
+    private static String koreanFamily() {
+        List<String> installed = Arrays.asList(
+                GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames());
+        for (String name : new String[]{"Apple SD Gothic Neo", "Malgun Gothic"}) {
+            if (installed.contains(name)) {
+                return name;
+            }
+        }
+        return null;
+    }
+
+    static String escapeHtml(String text) {
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     static JLabel title(String text) {
@@ -165,7 +185,7 @@ public final class Theme {
         if (text.startsWith("마감") || text.startsWith("제외")) {
             return new Color[]{ACCENT_SOFT, ACCENT_DARK};
         }
-        if (text.startsWith("빈자리") || text.startsWith("가능") || text.startsWith("매칭완료")) {
+        if (text.startsWith("빈자리") || text.startsWith("가능") || text.startsWith("매칭완료") || text.startsWith("내 과목")) {
             return new Color[]{GREEN_SOFT, GREEN};
         }
         if (text.startsWith("겹침")) {

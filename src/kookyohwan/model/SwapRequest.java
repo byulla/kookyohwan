@@ -1,6 +1,8 @@
 package kookyohwan.model;
 
 public class SwapRequest {
+    public static final int MAX_ID = 999_999_999;
+
     private final int id;
     private final String studentId;
     private final Course giveCourse;

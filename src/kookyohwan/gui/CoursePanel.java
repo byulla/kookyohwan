@@ -35,7 +35,7 @@ class CoursePanel extends JPanel {
     private final JComboBox<String> seatFilter = Theme.combo(new String[]{"전체", "빈자리 있음", "마감"});
     private final JLabel count = new JLabel();
     private final JLabel hint = new JLabel();
-    private final JButton addButton = Theme.primary("선택한 과목을 내 시간표에 넣기");
+    private final JButton addButton = Theme.primary("내 시간표에 넣기");
     private final DefaultTableModel model = new DefaultTableModel(
             new String[]{"학수번호", "교과목명", "분반", "구분", "학점", "빈자리", "시간", "교수", "강의실"}, 0) {
         @Override
@@ -142,16 +142,18 @@ class CoursePanel extends JPanel {
         boolean confirmed = session.getMe().isTimetableConfirmed();
         int row = table.getSelectedRow();
         Course selected = row >= 0 && row < shown.size() ? shown.get(row) : null;
-        addButton.setText(confirmed ? "선택한 과목 수강신청" : "선택한 과목을 내 시간표에 넣기");
+        boolean full = confirmed && selected != null && session.getEnrollment().isFull(selected);
+        addButton.setText(!confirmed ? "내 시간표에 넣기" : full ? "이 과목으로 교환 요청" : "수강신청");
         if (!confirmed) {
             addButton.setEnabled(selected != null);
-            hint.setText("시간표 편집 중: 지금 듣는 과목을 넣으세요. 다 넣었으면 [내 시간표] 탭에서 저장(확정)합니다.");
-        } else if (selected != null && session.getEnrollment().isFull(selected)) {
-            addButton.setEnabled(false);
-            hint.setText("마감된 과목입니다. [교환 요청] 탭에서 이 과목을 희망 과목으로 요청을 올리세요.");
+            hint.setText("시간표 편집 중: 지금 듣는 과목을 넣으세요(두 번 눌러도 됩니다). 다 넣었으면 [내 시간표] 탭에서 확정합니다.");
+        } else if (full) {
+            addButton.setEnabled(selected.isGeneral());
+            hint.setText(selected.isGeneral() ? "마감된 과목입니다. 교환 요청을 올려 바꿔 줄 상대를 찾으세요."
+                    : "마감된 과목입니다. 교양 과목만 교환할 수 있습니다.");
         } else {
             addButton.setEnabled(selected != null);
-            hint.setText("빈자리가 있는 과목만 수강신청할 수 있습니다. 마감된 과목은 교환 요청으로 상대를 찾으세요.");
+            hint.setText("빈자리가 있는 과목은 바로 수강신청하고(두 번 눌러도 됩니다), 마감된 과목은 교환 요청으로 상대를 찾으세요.");
         }
     }
 
@@ -161,6 +163,11 @@ class CoursePanel extends JPanel {
             JOptionPane.showMessageDialog(this, "과목을 먼저 선택하세요.", "안내", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        TimetableActions.add(this, session, shown.get(row));
+        Course picked = shown.get(row);
+        if (session.getMe().isTimetableConfirmed() && session.getEnrollment().isFull(picked)) {
+            session.requestExchange(picked.getName());
+            return;
+        }
+        TimetableActions.add(this, session, picked);
     }
 }

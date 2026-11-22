@@ -49,10 +49,12 @@ GUI(Swing)로 실행하려면 마지막 줄만 바꾼다. 외부 라이브러리
 java -cp out kookyohwan.GuiMain
 ```
 
-탭 4개(내 시간표, 과목 목록, 교환 요청, 매칭)가 콘솔 메뉴 1~5에 대응한다.
-매칭 탭에서는 [매칭 실행] 뒤 표에서 `가능`인 상대를 고르고 [선택한 상대와 교환 확정]을 누르면 두 사람의 시간표에서 과목이 맞바뀌고 두 요청이 매칭완료가 된다(GUI 전용). 사용자 전환은 오른쪽 위 버튼, 저장은 [저장] 버튼 또는 창을 닫을 때.
+탭은 4개다: 내 시간표, 과목 목록, 교환, 전체 요청.
+교환 탭 왼쪽에서 요청을 등록하거나 고르면 오른쪽에 교환할 수 있는 상대가 바로 나오고, 상대 카드의 [교환 확정]을 누르면 시간표에서 과목이 맞바뀌고 요청이 매칭완료가 된다(GUI 전용). 둘이서 하는 교환과 세 명이 돌려서 하는 교환이 같은 목록에 나온다.
+전체 요청 탭은 내 과목을 희망하는 요청을 맨 위에 색칠해 보여 주고, 줄에 마우스를 올리면 그 요청과 교환할 방법을 알려 준다.
+사용자 전환은 오른쪽 위 버튼. 저장 버튼은 없고 바뀔 때마다 자동으로 저장한다.
 
-시작하면 학번을 묻는다. 준비 데이터의 기본 사용자는 조혜라(`202612345`).
+시작하면 학번을 묻는다. 준비 데이터의 기본 사용자는 조혜라(`202633781`).
 등록되지 않은 학번을 넣으면 이름을 받아 빈 시간표로 시작한다.
 
 다른 데이터 폴더로 실행하려면 폴더 이름을 인자로 준다.
@@ -82,7 +84,7 @@ UTF-8, 첫 줄은 헤더, 구분자는 쉼표. 한 칸에 값이 여러 개면 �
 | 파일 | 형식 | 예 | 읽기·쓰기 |
 |---|---|---|---|
 | `courses.csv` | 코드,과목명,분반,구분,시간,교수,강의실,학점,정원,수강인원 | `08306001,운영체제,001,MAJOR,목4-5;금3,오기욱,AI관-209,3,60,60` | 읽기 전용. 없으면 안내 후 종료 |
-| `students.csv` | 학번,이름,과목코드,시간표상태 | `202612345,조혜라,09392004;08306001;05306002,CONFIRMED` | 메뉴 0·9에서 저장. 없으면 빈 상태로 시작 |
+| `students.csv` | 학번,이름,과목코드,시간표상태 | `202633781,조혜라,09392004;08306001;05306002,CONFIRMED` | 메뉴 0·9에서 저장. 없으면 빈 상태로 시작 |
 | `requests.csv` | 번호,학번,내놓는과목코드,희망과목명,상태 | `1,202612346,11393006,프랑스어1,WAITING` | 메뉴 0·9에서 저장. 없으면 빈 상태로 시작 |
 
 - 코드 = 학수번호 8자리, 분반 = 학수번호 끝 3자리, 과목명 = 교과목명 그대로
@@ -102,7 +104,7 @@ UTF-8, 첫 줄은 헤더, 구분자는 쉼표. 한 칸에 값이 여러 개면 �
 
 | 학생 | 학번 | 시간표 | 요청 |
 |---|---|---|---|
-| 조혜라 | 202612345 | 이산수학 `09392004` (월 4-6), 운영체제 `08306001` (목 4-5, 금 3), 프랑스어1 `05306002` (화 3-4) | (시연 중 등록) |
+| 조혜라 | 202633781 | 이산수학 `09392004` (월 4-6), 운영체제 `08306001` (목 4-5, 금 3), 프랑스어1 `05306002` (화 3-4) | (시연 중 등록) |
 | 백찬샘 | 202612346 | 생명과 나눔 `11393006` (수 5-6), 데이터통신 `07251001` (월 5-6, 목 5) | #1 생명과 나눔 -> 프랑스어1 |
 | 김병조 | 202612347 | 생명과 나눔 `11393006` (수 5-6) | #2 생명과 나눔 -> 일본어1 |
 | 신성환 | 202612348 | 심리학과 예술 `11934001` (화 5-6) | #3 심리학과 예술 -> 프랑스어1 |
@@ -120,7 +122,7 @@ git checkout -- data data-ac8
 
 ## 시연 순서
 
-조혜라(`202612345`)로 로그인한 뒤 아래 순서로 입력한다.
+조혜라(`202633781`)로 로그인한 뒤 아래 순서로 입력한다.
 
 | 순서 | 입력 | 확인할 것 | 완료 기준 |
 |---|---|---|---|
@@ -137,8 +139,8 @@ git checkout -- data data-ac8
 | 10 | `7`, `a`, Enter | 오류 메시지 후 메뉴 재표시, 종료되지 않음 | AC9 |
 | 11 | `9`, `202612346`, `5` | 저장 후 백찬샘로 전환, 조혜라의 #6이 `[가능]` | AC11 |
 | 12 | `0` | 저장 건수(요청 7건) | AC7 |
-| 13 | 재실행, `202612345`, `4` | `[복원] requests.csv 교환 요청 7건`, #6·#7 포함 | AC7 |
-| 14 | `java -cp out kookyohwan.Main data-ac8` 로 실행, `202612345`, `5`, `6` | 유의열 `[제외]` 상대 시간표 겹침: 대학생을 위한 학술적글쓰기 | AC8 |
+| 13 | 재실행, `202633781`, `4` | `[복원] requests.csv 교환 요청 7건`, #6·#7 포함 | AC7 |
+| 14 | `java -cp out kookyohwan.Main data-ac8` 로 실행, `202633781`, `5`, `6` | 유의열 `[제외]` 상대 시간표 겹침: 대학생을 위한 학술적글쓰기 | AC8 |
 
 ## 폴더 구조
 
@@ -146,12 +148,14 @@ git checkout -- data data-ac8
 kookyohwan/
 ├── data/            준비 데이터 + 저장 파일 (CSV)
 ├── data-ac8/        AC8 시연용 데이터
+├── data-swap3/      세 명 교환 시험용 데이터 (`java -cp out kookyohwan.GuiMain data-swap3`, 학번 202630001)
+├── test/            테스트 5개 (JUnit 없이 main으로 실행): ConflictTest, ScenarioTest, EdgeCaseTest, CycleTest, WeirdTest
 ├── src/kookyohwan/
 │   ├── Main.java    콘솔 진입점: 복원 -> 학번 입력 -> 메뉴 -> 저장
 │   ├── GuiMain.java GUI 진입점 (Swing)
-│   ├── gui/         Swing 화면: MainPanel, TimetableCanvas, CoursePanel, RequestPanel, MatchPanel 등
-│   ├── model/       Day, TimeSlot, Course, Timetable, Student, SwapRequest, MatchResult 등
-│   ├── service/     Repository<K, V>, CourseCatalog, StudentRegistry, RequestBoard, MatchService
+│   ├── gui/         Swing 화면: MainPanel, TimetableCanvas, CoursePanel, ExchangePanel, RequestPanel 등
+│   ├── model/       Day, TimeSlot, Course, Timetable, Student, SwapRequest, MatchResult, CycleMatch 등
+│   ├── service/     Repository<K, V>, CourseCatalog, StudentRegistry, RequestBoard, MatchService, ExchangeService, EnrollmentService
 │   ├── storage/     Storage 인터페이스, FileStorage(CSV)
 │   ├── ui/          ConsoleUI, TimetableGrid, TextUtil
 │   └── docs/        개발 계획서(plan.pdf), 학교 시간표 엑셀 원본

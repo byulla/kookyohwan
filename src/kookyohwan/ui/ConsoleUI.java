@@ -202,6 +202,7 @@ public class ConsoleUI {
                 table.add(course);
                 System.out.println("[등록] " + course.getCode() + " " + label(course) + " 추가. "
                         + table.size() + "과목 " + table.getTotalCredits() + "학점");
+                cancelFulfilled();
                 printTimetable();
                 continue;
             }
@@ -231,7 +232,15 @@ public class ConsoleUI {
             table.replace(conflicts, course);
             System.out.println("[등록] " + String.join(", ", removedNames) + " 삭제, " + course.getName() + " "
                     + course.getSection() + " 추가. " + table.size() + "과목 " + table.getTotalCredits() + "학점");
+            cancelFulfilled();
             printTimetable();
+        }
+    }
+
+    private void cancelFulfilled() {
+        for (SwapRequest r : board.cancelFulfilled(me)) {
+            System.out.println("[안내] 요청 #" + r.getId() + " 자동 취소: 희망하던 " + r.getWantName()
+                    + " 과목을 시간표에 넣었습니다.");
         }
     }
 

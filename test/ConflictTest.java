@@ -503,6 +503,16 @@ public class ConflictTest {
     }
 
     static void matchMatrix() throws IOException {
+        t("희망하던 과목을 직접 넣으면 그 요청만 자동 취소 (cancelFulfilled)", () -> { W w = new W();
+            Student a = w.stu("1", true, FR1); SwapRequest wantLife = w.raw("1", FR1, "생명"); SwapRequest wantJp = w.raw("1", FR1, "일본어");
+            eq(0, w.board.cancelFulfilled(a).size(), "아직 안 넣었는데 취소됨"); ok(a.getTimetable().add(w.c(LF1)), "생명 추가 실패");
+            eq(Arrays.asList(wantLife), w.board.cancelFulfilled(a), "취소된 요청"); eq(RequestStatus.CANCELLED, wantLife.getStatus(), "생명 요청"); eq(RequestStatus.WAITING, wantJp.getStatus(), "일본어 요청");
+            eq(0, w.board.cancelFulfilled(a).size(), "두 번째에는 취소할 것이 없음"); });
+        t("콘솔: 희망하던 과목을 메뉴 2에서 넣으면 요청 자동 취소 안내가 나온다", () -> { Path dir = writeCourses("auto-cancel");
+            Files.write(dir.resolve("students.csv"), ("학번,이름,과목코드,시간표상태\n1,가,20001001,CONFIRMED\n").getBytes(StandardCharsets.UTF_8));
+            Files.write(dir.resolve("requests.csv"), ("번호,학번,내놓는과목코드,희망과목명,상태\n1,1,20001001,생명,WAITING\n").getBytes(StandardCharsets.UTF_8));
+            String out = runConsole(dir, "1", "2", LF1, "", "4", "0"); has(out, "[안내] 요청 #1 자동 취소: 희망하던 생명 과목을 시간표에 넣었습니다."); has(out, "취소"); });
+
         sec("6. 매칭 판정표 (가능 / 내 쪽 제외 / 상대 쪽 제외 / 후보 아님)");
         W w = new W();
         Student me = w.stu("100", true, M1, M3, FR1);
@@ -825,6 +835,56 @@ public class ConflictTest {
     }
 
     static void enrollment() throws IOException {
+        sec("8-3. 3자 순환 교환 (MatchService.matchCycles, DFS)");
+        t("세 사람 고리: 1:1로는 후보가 없지만 순환으로는 가능", () -> { W w = new W();
+            Student a = w.stu("1", true, M1, FR1); SwapRequest ra = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF1); SwapRequest rb = w.raw("2", LF1, "일본어");
+            w.stu("3", true, JP1); SwapRequest rc = w.raw("3", JP1, "프랑스어");
+            String s = w.snapshot(); eq(0, w.match(ra).size(), "1:1 후보");
+            List<CycleMatch> cs = w.matcher.matchCycles(ra, a.getTimetable()); eq(1, cs.size(), "순환 수");
+            ok(cs.get(0).isPossible(), "가능이 아님: " + cs.get(0).getReason()); eq(Arrays.asList(ra, rb, rc), cs.get(0).getRequests(), "순서");
+            eq(LF1, cs.get(0).receiveCourseOf(0).getCode(), "내가 받을 과목"); eq(FR1, cs.get(0).receiveCourseOf(2).getCode(), "마지막 사람이 받을 과목");
+            eq(s, w.snapshot(), "탐색은 상태를 바꾸지 않는다"); });
+        t("순환 확정: 세 시간표가 한 칸씩 돌고 세 요청이 매칭완료", () -> { W w = new W();
+            Student a = w.stu("1", true, M1, FR1); SwapRequest ra = w.raw("1", FR1, "생명");
+            Student b = w.stu("2", true, LF1); SwapRequest rb = w.raw("2", LF1, "일본어");
+            Student c = w.stu("3", true, JP1); SwapRequest rc = w.raw("3", JP1, "프랑스어");
+            List<SwapRequest> cancelled = w.exchange.confirmCycle(Arrays.asList(ra, rb, rc));
+            eq(Arrays.asList(M1, LF1), w.codes(a), "1번 시간표"); eq(Arrays.asList(JP1), w.codes(b), "2번 시간표"); eq(Arrays.asList(FR1), w.codes(c), "3번 시간표");
+            for (SwapRequest r : Arrays.asList(ra, rb, rc)) eq(RequestStatus.MATCHED, r.getStatus(), "요청 #" + r.getId());
+            eq(0, cancelled.size(), "취소된 요청"); eq(Collections.emptyList(), violations(w, true), "위반");
+            String s = w.snapshot(); ok(rejected(() -> w.exchange.confirmCycle(Arrays.asList(ra, rb, rc))) != null, "두 번 확정됨"); eq(s, w.snapshot(), "상태"); });
+        t("순환 확정 때 같은 과목을 내놓던 다른 대기 요청은 취소", () -> { W w = new W();
+            w.stu("1", true, FR1); SwapRequest ra = w.raw("1", FR1, "생명"); SwapRequest extra = w.raw("1", FR1, "영화");
+            w.stu("2", true, LF1); SwapRequest rb = w.raw("2", LF1, "일본어");
+            w.stu("3", true, JP1); SwapRequest rc = w.raw("3", JP1, "프랑스어");
+            eq(Arrays.asList(extra), w.exchange.confirmCycle(Arrays.asList(ra, rb, rc)), "취소된 요청"); eq(RequestStatus.CANCELLED, extra.getStatus(), "남은 요청"); });
+        t("고리 안 한 사람이라도 겹치면 제외, 확정도 거절 (상태 불변)", () -> { W w = new W();
+            Student a = w.stu("1", true, M1, FR1); SwapRequest ra = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF2); SwapRequest rb = w.raw("2", LF2, "일본어");
+            Student c = w.stu("3", true, JP1); SwapRequest rc = w.raw("3", JP1, "프랑스어");
+            CycleMatch mine = w.matcher.matchCycles(ra, a.getTimetable()).get(0); ok(!mine.isPossible(), "가능으로 나옴"); eq(MatchVerdict.EXCLUDED_MINE, mine.getVerdict(), "판정"); has(mine.getReason(), "내 시간표 겹침");
+            CycleMatch theirs = w.matcher.matchCycles(rc, c.getTimetable()).get(0); eq(MatchVerdict.EXCLUDED_PARTNER, theirs.getVerdict(), "3번이 본 판정"); has(theirs.getReason(), "#" + ra.getId() + " 시간표 겹침");
+            String s = w.snapshot(); String r = rejected(() -> w.exchange.confirmCycle(Arrays.asList(ra, rb, rc))); ok(r != null, "확정됨"); has(r, "겹침"); eq(s, w.snapshot(), "상태"); });
+        t("고리가 아닌 것: 2명 교환, 4명 고리, 같은 학생의 요청 두 건, 대기가 아닌 요청", () -> { W w = new W();
+            Student a = w.stu("1", true, FR1); SwapRequest ra = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF1, JP1); SwapRequest rb = w.raw("2", LF1, "프랑스어");
+            eq(0, w.matcher.matchCycles(ra, a.getTimetable()).size(), "2명 교환");
+            w.raw("2", LF1, "일본어"); w.raw("2", JP1, "프랑스어");
+            eq(0, w.matcher.matchCycles(ra, a.getTimetable()).size(), "같은 학생 두 건");
+            w.stu("3", true, JP2); w.raw("3", JP2, "영화"); w.stu("4", true, MOV); w.raw("4", MOV, "프랑스어");
+            eq(0, w.matcher.matchCycles(ra, a.getTimetable()).size(), "4명 고리");
+            w.raw("3", JP2, "프랑스어", RequestStatus.CANCELLED);
+            eq(0, w.matcher.matchCycles(ra, a.getTimetable()).size(), "취소된 요청");
+            ok(rejected(() -> w.exchange.confirmCycle(Arrays.asList(ra, rb, ra))) != null, "고리가 아닌데 확정됨"); });
+        t("상대가 여러 명이면 요청 번호 순으로 전부 나온다", () -> { W w = new W();
+            Student a = w.stu("1", true, FR1); SwapRequest ra = w.raw("1", FR1, "생명");
+            w.stu("2", true, LF1); SwapRequest rb = w.raw("2", LF1, "일본어");
+            w.stu("3", true, JP1); SwapRequest rc = w.raw("3", JP1, "프랑스어");
+            w.stu("4", true, LF3); SwapRequest rd = w.raw("4", LF3, "일본어");
+            List<CycleMatch> cs = w.matcher.matchCycles(ra, a.getTimetable()); eq(2, cs.size(), "순환 수");
+            eq(Arrays.asList(ra, rb, rc), cs.get(0).getRequests(), "첫째"); eq(Arrays.asList(ra, rd, rc), cs.get(1).getRequests(), "둘째"); });
+
         sec("9. 정원·빈자리 (EnrollmentService)");
         t("수강인원 = 파일 값 + 이 프로그램 학생 수", () -> { W w = new W(); eq(1, w.enroll.enrolledOf(w.c(CO)), "처음");
             w.stu("1", true, CO); eq(2, w.enroll.enrolledOf(w.c(CO)), "한 명 수강"); });

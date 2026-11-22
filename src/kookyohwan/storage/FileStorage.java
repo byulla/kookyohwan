@@ -29,7 +29,9 @@ public class FileStorage implements Storage {
     private static final String CONFIRMED = "CONFIRMED";
     private static final String EDITING = "EDITING";
     private static final String REQUESTS_HEADER = "번호,학번,내놓는과목코드,희망과목명,상태";
-    private static final int MAX_REQUEST_ID = 999_999_999;
+    private static final int MAX_REQUEST_ID = SwapRequest.MAX_ID;
+    private static final int MAX_CREDITS_VALUE = 99;
+    private static final int MAX_PEOPLE = 999_999;
     private static final String BOM = "\uFEFF";
 
     private final Path dir;
@@ -49,6 +51,9 @@ public class FileStorage implements Storage {
             if (!seen.add(row.cells[0])) {
                 throw row.error("과목 코드가 중복됩니다 " + row.cells[0]);
             }
+            if (row.cells[0].matches(".*[,;\"].*")) {
+                throw row.error("과목 코드에는 쉼표·세미콜론·큰따옴표를 쓸 수 없습니다 (" + row.cells[0] + ")");
+            }
             if (row.cells[1].isEmpty()) {
                 throw row.error("과목명이 비어 있습니다");
             }
@@ -59,9 +64,9 @@ public class FileStorage implements Storage {
                 }
                 String professor = row.cells.length > 5 ? row.cells[5] : "";
                 String room = row.cells.length > 6 ? row.cells[6] : "";
-                int credits = row.cells.length > 7 ? number(row.cells[7], "학점") : 0;
-                int capacity = row.cells.length > 8 ? number(row.cells[8], "정원") : 0;
-                int enrolled = row.cells.length > 9 ? number(row.cells[9], "수강인원") : 0;
+                int credits = row.cells.length > 7 ? number(row.cells[7], "학점", MAX_CREDITS_VALUE) : 0;
+                int capacity = row.cells.length > 8 ? number(row.cells[8], "정원", MAX_PEOPLE) : 0;
+                int enrolled = row.cells.length > 9 ? number(row.cells[9], "수강인원", MAX_PEOPLE) : 0;
                 result.add(new Course(row.cells[0], row.cells[1], row.cells[2],
                         choice(CourseType.class, row.cells[3], "구분"), times, professor, room,
                         credits, capacity, enrolled));
@@ -127,7 +132,7 @@ public class FileStorage implements Storage {
                 throw row.error("희망 과목명이 비어 있습니다");
             }
             try {
-                int id = number(row.cells[0], "요청 번호");
+                int id = number(row.cells[0], "요청 번호", Integer.MAX_VALUE);
                 if (id < 1 || id > MAX_REQUEST_ID) {
                     throw new IllegalArgumentException("요청 번호는 1 이상 " + MAX_REQUEST_ID
                             + " 이하여야 합니다 (" + id + ")");
@@ -153,7 +158,7 @@ public class FileStorage implements Storage {
             for (Course c : s.getTimetable().getCourses()) {
                 codes.add(c.getCode());
             }
-            lines.add(s.getId() + "," + quote(s.getName()) + "," + String.join(";", codes) + ","
+            lines.add(s.getId() + "," + quote(clean(s.getName())) + "," + String.join(";", codes) + ","
                     + (s.isTimetableConfirmed() ? CONFIRMED : EDITING));
         }
         write(STUDENTS_FILE, lines);
@@ -165,21 +170,25 @@ public class FileStorage implements Storage {
         lines.add(REQUESTS_HEADER);
         for (SwapRequest r : requests) {
             lines.add(r.getId() + "," + r.getStudentId() + "," + r.getGiveCourse().getCode() + ","
-                    + quote(r.getWantName()) + "," + r.getStatus().name());
+                    + quote(clean(r.getWantName())) + "," + r.getStatus().name());
         }
         write(REQUESTS_FILE, lines);
     }
 
-    private static int number(String cell, String what) {
+    private static int number(String cell, String what, int max) {
+        int value;
         try {
-            int value = Integer.parseInt(cell);
+            value = Integer.parseInt(cell);
             if (value < 0) {
                 throw new NumberFormatException();
             }
-            return value;
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException(what + " 값은 0 이상의 숫자여야 합니다 (" + cell + ")");
         }
+        if (value > max) {
+            throw new IllegalArgumentException(what + " 값이 너무 큽니다 (" + cell + ", 최대 " + max + ")");
+        }
+        return value;
     }
 
     private static <E extends Enum<E>> E choice(Class<E> type, String cell, String what) {
@@ -263,6 +272,22 @@ public class FileStorage implements Storage {
         }
         cells.add(cell.toString().trim());
         return cells.toArray(new String[0]);
+    }
+
+    private static String clean(String value) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isHighSurrogate(ch) && i + 1 < value.length()
+                    && Character.isLowSurrogate(value.charAt(i + 1))) {
+                sb.append(ch).append(value.charAt(++i));
+            } else if (Character.isSurrogate(ch)) {
+                sb.append('?');
+            } else {
+                sb.append(ch == '\n' || ch == '\r' ? ' ' : ch);
+            }
+        }
+        return sb.toString();
     }
 
     private static String quote(String value) {
